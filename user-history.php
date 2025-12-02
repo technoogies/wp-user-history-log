@@ -44,15 +44,19 @@ class User_History {
     ];
 
     /**
-     * User meta fields to track
+     * User meta fields to track (capabilities key is added dynamically in init)
      */
     private $tracked_meta = [
         'first_name'   => 'First Name',
         'last_name'    => 'Last Name',
         'nickname'     => 'Nickname',
         'description'  => 'Biographical Info',
-        'wp_capabilities' => 'Role',
     ];
+
+    /**
+     * The capabilities meta key (set dynamically based on table prefix)
+     */
+    private $capabilities_key = '';
 
     /**
      * Temporarily store old user data before update
@@ -129,6 +133,12 @@ class User_History {
      * Initialize plugin
      */
     public function init() {
+        global $wpdb;
+
+        // Set the capabilities meta key dynamically based on table prefix
+        $this->capabilities_key = $wpdb->prefix . 'capabilities';
+        $this->tracked_meta[$this->capabilities_key] = 'Role';
+
         // Check for database updates
         $this->maybe_upgrade();
 
@@ -142,6 +152,9 @@ class User_History {
         // Hook for user meta changes
         add_action('update_user_meta', [$this, 'capture_old_meta'], 10, 4);
         add_action('updated_user_meta', [$this, 'log_meta_change'], 10, 4);
+
+        // Hook specifically for role changes (fires when set_role() is called)
+        add_action('set_user_role', [$this, 'log_role_change'], 10, 3);
 
         // Hook for new user registration
         add_action('user_register', [$this, 'log_user_creation'], 10, 2);
@@ -332,7 +345,7 @@ class User_History {
             : '';
 
         // Handle role/capabilities specially
-        if ($meta_key === 'wp_capabilities') {
+        if ($meta_key === $this->capabilities_key) {
             $old_value = $this->format_capabilities($old_value);
             $meta_value = $this->format_capabilities($meta_value);
         }
@@ -370,6 +383,33 @@ class User_History {
 
         $roles = array_keys(array_filter($caps));
         return implode(', ', $roles);
+    }
+
+    /**
+     * Log role change (fires when set_role() is called)
+     *
+     * @param int    $user_id   The user ID
+     * @param string $role      The new role
+     * @param array  $old_roles The old roles
+     */
+    public function log_role_change($user_id, $role, $old_roles) {
+        $old_role = !empty($old_roles) ? implode(', ', $old_roles) : '';
+        $new_role = $role;
+
+        // Only log if actually changed
+        if ($old_role === $new_role) {
+            return;
+        }
+
+        $this->log_change(
+            $user_id,
+            get_current_user_id(),
+            $this->capabilities_key,
+            'Role',
+            $old_role,
+            $new_role,
+            'update'
+        );
     }
 
     /**

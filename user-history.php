@@ -1,11 +1,11 @@
 <?php
 /**
  * Plugin Name: User History
- * Plugin URI: https://rcb.dev
+ * Plugin URI: https://www.wpzoom.com
  * Description: Tracks changes made to user accounts (name, email, username, etc.) and displays a history log on the user edit page.
  * Version: 1.0.1
- * Author: RCB
- * Author URI: https://rcb.dev
+ * Author: WPZOOM
+ * Author URI: https://www.wpzoom.com
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: user-history

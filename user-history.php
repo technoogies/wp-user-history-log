@@ -172,6 +172,9 @@ class User_History {
         // AJAX handler for changing username
         add_action('wp_ajax_user_history_change_username', [$this, 'ajax_change_username']);
 
+        // AJAX handler for clearing user history
+        add_action('wp_ajax_clear_user_history', [$this, 'ajax_clear_history']);
+
         // Extend user search to include history
         add_action('pre_user_query', [$this, 'extend_user_search']);
     }
@@ -527,12 +530,16 @@ class User_History {
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce'   => wp_create_nonce('user_history_nonce'),
             'changeUsernameNonce' => wp_create_nonce('user_history_change_username'),
+            'clearHistoryNonce' => wp_create_nonce('user_history_clear'),
             'userId'  => $user_id,
             'i18n'    => [
-                'change'       => __('Change', 'user-history'),
-                'cancel'       => __('Cancel', 'user-history'),
-                'pleaseWait'   => __('Please wait...', 'user-history'),
-                'errorGeneric' => __('Something went wrong. Please try again.', 'user-history'),
+                'change'        => __('Change', 'user-history'),
+                'cancel'        => __('Cancel', 'user-history'),
+                'pleaseWait'    => __('Please wait...', 'user-history'),
+                'errorGeneric'  => __('Something went wrong. Please try again.', 'user-history'),
+                'confirmClear'  => __('Are you sure you want to clear all history for this user? This cannot be undone.', 'user-history'),
+                'clearing'      => __('Clearing...', 'user-history'),
+                'clearLog'      => __('Clear Log', 'user-history'),
             ],
         ]);
     }
@@ -586,14 +593,17 @@ class User_History {
                         </tbody>
                     </table>
 
-                    <?php if ($total_count > 20): ?>
-                        <div class="user-history-load-more">
+                    <div class="user-history-actions">
+                        <?php if ($total_count > 20): ?>
                             <button type="button" class="button" id="user-history-load-more"
                                     data-offset="20" data-total="<?php echo esc_attr($total_count); ?>">
                                 <?php esc_html_e('Load More', 'user-history'); ?>
                             </button>
-                        </div>
-                    <?php endif; ?>
+                        <?php endif; ?>
+                        <button type="button" class="button user-history-clear-log" id="user-history-clear-log">
+                            <?php esc_html_e('Clear Log', 'user-history'); ?>
+                        </button>
+                    </div>
                 <?php endif; ?>
             </div>
         </div>
@@ -698,6 +708,40 @@ class User_History {
             'html'    => $html,
             'hasMore' => $has_more,
             'newOffset' => $offset + 20,
+        ]);
+    }
+
+    /**
+     * AJAX handler for clearing user history
+     */
+    public function ajax_clear_history() {
+        check_ajax_referer('user_history_clear', 'nonce');
+
+        if (!current_user_can('edit_users')) {
+            wp_send_json_error(['message' => __('Unauthorized', 'user-history')]);
+        }
+
+        $user_id = isset($_POST['user_id']) ? (int) $_POST['user_id'] : 0;
+
+        if (!$user_id) {
+            wp_send_json_error(['message' => __('Invalid user ID', 'user-history')]);
+        }
+
+        global $wpdb;
+        $table_name = $wpdb->prefix . self::TABLE_NAME;
+
+        $deleted = $wpdb->delete(
+            $table_name,
+            ['user_id' => $user_id],
+            ['%d']
+        );
+
+        if ($deleted === false) {
+            wp_send_json_error(['message' => __('Failed to clear history', 'user-history')]);
+        }
+
+        wp_send_json_success([
+            'message' => __('History cleared successfully', 'user-history'),
         ]);
     }
 

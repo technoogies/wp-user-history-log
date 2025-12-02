@@ -7,6 +7,7 @@
     $(document).ready(function() {
         initLoadMore();
         initChangeUsername();
+        initClearHistory();
     });
 
     /**
@@ -87,12 +88,9 @@
             text: i18n.change || 'Change'
         });
 
-        var $newInput = $('<input>', {
-            type: 'text',
-            class: 'regular-text user-history-new-username',
-            value: currentUsername,
-            autocomplete: 'off'
-        });
+        var $newInput = $('<input type="text" class="regular-text user-history-new-username">')
+            .val(currentUsername)
+            .attr('autocomplete', 'off');
 
         var $submitBtn = $('<button>', {
             type: 'button',
@@ -219,6 +217,62 @@
                 .text(text)
                 .show();
         }
+    }
+
+    /**
+     * Initialize clear history functionality
+     */
+    function initClearHistory() {
+        var $clearBtn = $('#user-history-clear-log');
+
+        if (!$clearBtn.length) {
+            return;
+        }
+
+        var i18n = userHistoryData.i18n || {};
+
+        $clearBtn.on('click', function(e) {
+            e.preventDefault();
+
+            if (!confirm(i18n.confirmClear || 'Are you sure you want to clear all history for this user? This cannot be undone.')) {
+                return;
+            }
+
+            var $btn = $(this);
+
+            if ($btn.hasClass('loading')) {
+                return;
+            }
+
+            $btn.addClass('loading').prop('disabled', true).text(i18n.clearing || 'Clearing...');
+
+            $.ajax({
+                url: userHistoryData.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'clear_user_history',
+                    nonce: userHistoryData.clearHistoryNonce,
+                    user_id: userHistoryData.userId
+                },
+                success: function(response) {
+                    if (response.success) {
+                        // Replace the history section with empty message
+                        var $historyLog = $('#user-history-log');
+                        $historyLog.html('<p class="user-history-empty">No changes have been recorded yet.</p>');
+
+                        // Update the count
+                        $('.user-history-count').remove();
+                    } else {
+                        alert(response.data.message || i18n.errorGeneric);
+                        $btn.removeClass('loading').prop('disabled', false).text(i18n.clearLog || 'Clear Log');
+                    }
+                },
+                error: function() {
+                    alert(i18n.errorGeneric || 'Something went wrong.');
+                    $btn.removeClass('loading').prop('disabled', false).text(i18n.clearLog || 'Clear Log');
+                }
+            });
+        });
     }
 
 })(jQuery);

@@ -3,7 +3,7 @@
  * Plugin Name: User History
  * Plugin URI: https://rcb.dev
  * Description: Tracks changes made to user accounts (name, email, username, etc.) and displays a history log on the user edit page.
- * Version: 1.0.0
+ * Version: 1.0.1
  * Author: RCB
  * Author URI: https://rcb.dev
  * License: GPL v2 or later
@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('USER_HISTORY_VERSION', '1.0.0');
+define('USER_HISTORY_VERSION', '1.0.1');
 define('USER_HISTORY_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('USER_HISTORY_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -117,7 +117,8 @@ class User_History {
             KEY user_id (user_id),
             KEY changed_by (changed_by),
             KEY field_name (field_name),
-            KEY created_at (created_at)
+            KEY created_at (created_at),
+            KEY old_value_search (field_name, old_value(100))
         ) $charset_collate;";
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
@@ -226,6 +227,11 @@ class User_History {
         }
 
         $history_table = $wpdb->prefix . self::TABLE_NAME;
+
+        // Check if table exists (plugin may not be activated yet)
+        if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $history_table)) !== $history_table) {
+            return;
+        }
 
         // Find user IDs that have matching old values in history
         $user_ids_from_history = $wpdb->get_col($wpdb->prepare(
@@ -533,7 +539,10 @@ class User_History {
                             </tr>
                         </thead>
                         <tbody id="user-history-tbody">
-                            <?php echo $this->render_history_rows($history); ?>
+                            <?php
+                            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Output is escaped in render_history_rows()
+                            echo $this->render_history_rows($history);
+                            ?>
                         </tbody>
                     </table>
 

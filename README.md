@@ -80,6 +80,11 @@ Click "Change" next to the username field to reveal an inline form for changing 
 
 ## Changelog
 
+### 1.0.3
+- Added Delete User button on user edit page for quick access
+- Added Requires at least and Requires PHP headers to plugin file
+- Code improvements for WordPress.org plugin directory compliance
+
 ### 1.0.2
 - Added Clear Log button to delete history for a user
 - Improved role change tracking for Members plugin compatibility

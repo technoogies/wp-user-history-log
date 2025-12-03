@@ -4,7 +4,7 @@ Tags: user history, user log, audit log, change username, user tracking
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.0.2
+Stable tag: 1.0.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -90,6 +90,11 @@ On the user edit page, scroll down to the Account History section and click the 
 
 == Changelog ==
 
+= 1.0.3 =
+* Added Delete User button on user edit page for quick access
+* Added Requires at least and Requires PHP headers to plugin file
+* Code improvements for WordPress.org plugin directory compliance
+
 = 1.0.2 =
 * Added Clear Log button to delete history for a user
 * Improved role change tracking for Members plugin compatibility
@@ -109,6 +114,9 @@ On the user edit page, scroll down to the Account History section and click the 
 * Account History display on user edit page
 
 == Upgrade Notice ==
+
+= 1.0.3 =
+Adds Delete User button on user edit page. Code improvements for WordPress.org compliance.
 
 = 1.0.2 =
 Adds Clear Log button, fixes role tracking with Members plugin, and fixes false positive password logging.

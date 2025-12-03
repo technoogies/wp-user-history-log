@@ -17,9 +17,9 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('USER_HISTORY_VERSION', '1.0.2');
 define('USER_HISTORY_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('USER_HISTORY_PLUGIN_URL', plugin_dir_url(__FILE__));
+define('USER_HISTORY_VERSION', get_file_data(__FILE__, ['Version' => 'Version'])['Version']);
 
 /**
  * Main User History Class
@@ -269,12 +269,15 @@ class User_History {
         }
 
         // Find user IDs that have matching old values in history
-        $user_ids_from_history = $wpdb->get_col($wpdb->prepare(
-            "SELECT DISTINCT user_id FROM $history_table
-            WHERE old_value LIKE %s
-            AND field_name IN ('user_login', 'user_email', 'first_name', 'last_name', 'display_name', 'nickname')",
-            '%' . $wpdb->esc_like($search_term) . '%'
-        ));
+        $user_ids_from_history = $wpdb->get_col(
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name is safely constructed from $wpdb->prefix
+            $wpdb->prepare(
+                "SELECT DISTINCT user_id FROM $history_table
+                WHERE old_value LIKE %s
+                AND field_name IN ('user_login', 'user_email', 'first_name', 'last_name', 'display_name', 'nickname')",
+                '%' . $wpdb->esc_like($search_term) . '%'
+            )
+        );
 
         if (empty($user_ids_from_history)) {
             return;
@@ -552,6 +555,7 @@ class User_History {
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
         $results = $wpdb->get_results(
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name is safely constructed from $wpdb->prefix
             $wpdb->prepare(
                 "SELECT * FROM $table_name
                 WHERE user_id = %d
@@ -575,6 +579,7 @@ class User_History {
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
         return (int) $wpdb->get_var(
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name is safely constructed from $wpdb->prefix
             $wpdb->prepare(
                 "SELECT COUNT(*) FROM $table_name WHERE user_id = %d",
                 $user_id
@@ -606,6 +611,7 @@ class User_History {
         );
 
         // Get user ID from URL or current user
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Nonce not required for reading user_id, value is cast to int
         $user_id = isset($_GET['user_id']) ? (int) $_GET['user_id'] : get_current_user_id();
 
         wp_localize_script('user-history-admin', 'userHistoryData', [
@@ -892,8 +898,10 @@ class User_History {
             wp_send_json($response);
         }
 
-        $new_username = sanitize_user(trim($_POST['new_username']), true);
-        $old_username = sanitize_user(trim($_POST['current_username']), true);
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitize_user handles sanitization
+        $new_username = sanitize_user(trim(wp_unslash($_POST['new_username'])), true);
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitize_user handles sanitization
+        $old_username = sanitize_user(trim(wp_unslash($_POST['current_username'])), true);
 
         // Old username must exist
         $user_id = username_exists($old_username);

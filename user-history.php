@@ -178,6 +178,10 @@ class User_History {
         add_action('edit_user_profile', [$this, 'display_history_section'], 99);
         add_action('show_user_profile', [$this, 'display_history_section'], 99);
 
+        // Add delete user button to user edit page
+        add_action('edit_user_profile', [$this, 'display_delete_user_button'], 100);
+        add_action('show_user_profile', [$this, 'display_delete_user_button'], 100);
+
         // Enqueue admin styles
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
 
@@ -684,6 +688,44 @@ class User_History {
                     </div>
                 <?php endif; ?>
             </div>
+        </div>
+        <?php
+    }
+
+    /**
+     * Display delete user button on user edit page
+     */
+    public function display_delete_user_button($user) {
+        // Only show to users who can delete users
+        if (!current_user_can('delete_users')) {
+            return;
+        }
+
+        // Don't allow deleting yourself
+        if ($user->ID === get_current_user_id()) {
+            return;
+        }
+
+        // Don't show for super admins on multisite (they can't be deleted this way)
+        if (is_multisite() && is_super_admin($user->ID)) {
+            return;
+        }
+
+        $delete_url = wp_nonce_url(
+            admin_url('users.php?action=delete&user=' . $user->ID),
+            'bulk-users'
+        );
+        ?>
+        <div class="user-history-section user-history-delete-section">
+            <h2><?php esc_html_e('Delete User', 'user-history'); ?></h2>
+            <p class="description">
+                <?php esc_html_e('Permanently delete this user account. You will be able to reassign their content to another user.', 'user-history'); ?>
+            </p>
+            <p>
+                <a href="<?php echo esc_url($delete_url); ?>" class="button button-link-delete">
+                    <?php esc_html_e('Delete User', 'user-history'); ?>
+                </a>
+            </p>
         </div>
         <?php
     }

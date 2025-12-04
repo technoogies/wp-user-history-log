@@ -1,14 +1,15 @@
 <?php
+
 /**
- * Plugin Name: User History
- * Plugin URI: https://github.com/wpzoom/user-history
+ * Plugin Name: WP User History Log
+ * Plugin URI: https://github.com/technoogies/wp-user-history-log
  * Description: Tracks changes made to user accounts (name, email, username, etc.) and displays a history log on the user edit page.
- * Version: 1.0.3
- * Author: WPZOOM
- * Author URI: https://www.wpzoom.com
+ * Version: 1.0.0
+ * Author: Technoogies / gpt 5.1 codex | from WPZOOM user-history
+ * Author URI: https://technoogies.com
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain: user-history
+ * Text Domain: user-history-log
  * Requires at least: 6.0
  * Requires PHP: 7.4
  */
@@ -26,7 +27,8 @@ define('USER_HISTORY_VERSION', get_file_data(__FILE__, ['Version' => 'Version'])
 /**
  * Main User History Class
  */
-class User_History {
+class User_History
+{
 
     /**
      * Database table name (without prefix)
@@ -68,15 +70,45 @@ class User_History {
 
     /**
      * Track which users have had role changes logged this request
-     * (to prevent duplicate logging from set_user_role and updated_user_meta)
      */
     private $role_logged = [];
 
     /**
      * Pending role changes to log at shutdown (to capture final state)
-     * Format: [user_id => old_roles_string]
      */
     private $pending_role_changes = [];
+
+    /**
+     * Encryption key cache
+     */
+    private $encryption_key = '';
+
+    /**
+     * Sensitive fields list
+     */
+    private $sensitive_fields = [
+        'user_login',
+        'user_email',
+        'first_name',
+        'last_name',
+        'display_name',
+        'nickname',
+        'user_url',
+        'description',
+        'user_nicename',
+    ];
+
+    /**
+     * Fields eligible for historical searching
+     */
+    private $searchable_fields = [
+        'user_login',
+        'user_email',
+        'first_name',
+        'last_name',
+        'display_name',
+        'nickname',
+    ];
 
     /**
      * Singleton instance
@@ -86,7 +118,8 @@ class User_History {
     /**
      * Get singleton instance
      */
-    public static function get_instance() {
+    public static function get_instance()
+    {
         if (null === self::$instance) {
             self::$instance = new self();
         }
@@ -96,7 +129,8 @@ class User_History {
     /**
      * Constructor
      */
-    private function __construct() {
+    private function __construct()
+    {
         // Activation hook
         register_activation_hook(__FILE__, [$this, 'activate']);
 
@@ -107,7 +141,8 @@ class User_History {
     /**
      * Plugin activation
      */
-    public function activate() {
+    public function activate()
+    {
         $this->create_table();
         update_option('user_history_version', USER_HISTORY_VERSION);
     }
@@ -115,7 +150,8 @@ class User_History {
     /**
      * Create database table
      */
-    private function create_table() {
+    private function create_table()
+    {
         global $wpdb;
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
@@ -129,6 +165,8 @@ class User_History {
             field_label varchar(100) NOT NULL,
             old_value longtext,
             new_value longtext,
+            search_tokens longtext,
+            changed_by_details longtext,
             change_type varchar(50) NOT NULL DEFAULT 'update',
             created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
@@ -146,12 +184,18 @@ class User_History {
     /**
      * Initialize plugin
      */
-    public function init() {
+    public function init()
+    {
         global $wpdb;
 
         // Set the capabilities meta key dynamically based on table prefix
         $this->capabilities_key = $wpdb->prefix . 'capabilities';
         $this->tracked_meta[$this->capabilities_key] = 'Role';
+
+        // Ensure capability key is classified
+        if (!in_array($this->capabilities_key, $this->sensitive_fields, true)) {
+            $this->sensitive_fields[] = $this->capabilities_key;
+        }
 
         // Check for database updates
         $this->maybe_upgrade();
@@ -203,7 +247,8 @@ class User_History {
     /**
      * Maybe upgrade database
      */
-    private function maybe_upgrade() {
+    private function maybe_upgrade()
+    {
         $current_version = get_option('user_history_version', '0');
 
         if (version_compare($current_version, USER_HISTORY_VERSION, '<')) {
@@ -215,7 +260,8 @@ class User_History {
     /**
      * Capture old user data before update
      */
-    public function capture_old_user_data($data, $update, $user_id, $userdata) {
+    public function capture_old_user_data($data, $update, $user_id, $userdata)
+    {
         if ($update && $user_id) {
             $old_user = get_userdata($user_id);
             if ($old_user) {
@@ -233,70 +279,91 @@ class User_History {
     /**
      * Placeholder for query-based capture (if needed)
      */
-    public function capture_old_data_on_query($query) {
+    public function capture_old_data_on_query($query)
+    {
         // Reserved for future use
     }
 
     /**
      * Extend user search to include historical values
-     *
-     * When searching users in admin, also search through old_value in history table
-     * to find users by their previous usernames, emails, names, etc.
      */
-    public function extend_user_search($query) {
+    public function extend_user_search($query)
+    {
         global $wpdb, $pagenow;
 
-        // Only run on users.php admin page with a search
-        if (!is_admin() || $pagenow !== 'users.php') {
+        if (!is_admin() || $pagenow !== 'users.php' || !current_user_can('list_users')) {
             return;
         }
 
-        // Check if there's a search term
         $search = $query->get('search');
         if (empty($search)) {
             return;
         }
 
-        // Remove the wildcard characters that WordPress adds
         $search_term = trim($search, '*');
         if (empty($search_term)) {
             return;
         }
 
+        $token_hashes = $this->hash_tokens_from_term($search_term);
+        if (empty($token_hashes)) {
+            return;
+        }
+
         $history_table = $wpdb->prefix . self::TABLE_NAME;
 
-        // Check if table exists (plugin may not be activated yet)
         if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $history_table)) !== $history_table) {
             return;
         }
 
-        // Find user IDs that have matching old values in history
-        $user_ids_from_history = $wpdb->get_col(
-            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name is safely constructed from $wpdb->prefix
-            $wpdb->prepare(
-                "SELECT DISTINCT user_id FROM $history_table
-                WHERE old_value LIKE %s
-                AND field_name IN ('user_login', 'user_email', 'first_name', 'last_name', 'display_name', 'nickname')",
-                '%' . $wpdb->esc_like($search_term) . '%'
-            )
-        );
+        $placeholders = [];
+        $prepare_args = [];
+        foreach ($token_hashes as $hash) {
+            $placeholders[] = "COALESCE(search_tokens, '') LIKE %s";
+            $prepare_args[] = '%' . $wpdb->esc_like($hash) . '%';
+        }
+
+        if (empty($placeholders)) {
+            return;
+        }
+
+        $searchable_fields = "'" . implode("','", array_map('esc_sql', $this->searchable_fields)) . "'";
+        $sql = "
+            SELECT DISTINCT user_id
+            FROM $history_table
+            WHERE field_name IN ($searchable_fields)
+            AND (" . implode(' OR ', $placeholders) . ')
+        ';
+
+        array_unshift($prepare_args, $sql);
+        $prepared_sql = call_user_func_array([$wpdb, 'prepare'], $prepare_args);
+
+        $user_ids_from_history = $wpdb->get_col($prepared_sql);
 
         if (empty($user_ids_from_history)) {
             return;
         }
 
-        // Add these user IDs to the search results by modifying the WHERE clause
-        // We inject an OR condition: (original search conditions) OR (ID IN history matches)
-        $ids_list = implode(',', array_map('intval', $user_ids_from_history));
+        $allowed_ids = array_filter(
+            array_map('intval', $user_ids_from_history),
+            function ($user_id) {
+                return $this->user_can_manage_history($user_id);
+            }
+        );
 
-        // Append our condition to include users found in history
+        if (empty($allowed_ids)) {
+            return;
+        }
+
+        $ids_list = implode(',', $allowed_ids);
         $query->query_where .= " OR {$wpdb->users}.ID IN ($ids_list)";
     }
 
     /**
      * Capture old meta value before update
      */
-    public function capture_old_meta($meta_id, $user_id, $meta_key, $meta_value) {
+    public function capture_old_meta($meta_id, $user_id, $meta_key, $meta_value)
+    {
         if (isset($this->tracked_meta[$meta_key])) {
             if (!isset($this->old_user_meta[$user_id])) {
                 $this->old_user_meta[$user_id] = [];
@@ -308,8 +375,8 @@ class User_History {
     /**
      * Log user profile changes
      */
-    public function log_user_changes($user_id, $old_user_data_param, $userdata) {
-        // Get the old data we captured
+    public function log_user_changes($user_id, $old_user_data_param, $userdata)
+    {
         $old_user = isset($this->old_user_data[$user_id]) ? $this->old_user_data[$user_id] : $old_user_data_param;
 
         if (!$old_user) {
@@ -318,14 +385,11 @@ class User_History {
 
         $changed_by = get_current_user_id();
 
-        // Compare tracked fields
         foreach ($this->tracked_fields as $field => $label) {
             $old_value = '';
             $new_value = '';
 
             if ($field === 'user_pass') {
-                // Only log when password actually changed (new hash differs from old hash)
-                // Never log any password values - just the event
                 $old_pass = '';
                 if (is_object($old_user) && isset($old_user->user_pass)) {
                     $old_pass = $old_user->user_pass;
@@ -335,45 +399,40 @@ class User_History {
 
                 $new_pass = isset($userdata['user_pass']) ? $userdata['user_pass'] : '';
 
-                // Only log if password hash actually changed
                 if (!empty($new_pass) && $old_pass !== $new_pass) {
-                    $this->log_change($user_id, $changed_by, $field, $label, '', '', 'update');
+                    $this->log_change($user_id, $changed_by, $field, $label, '', '', 'update', ['action' => 'password_change']);
                 }
                 continue;
             }
 
-            // Get old value
             if (is_object($old_user) && isset($old_user->$field)) {
                 $old_value = $old_user->$field;
             } elseif (is_object($old_user) && isset($old_user->data->$field)) {
                 $old_value = $old_user->data->$field;
             }
 
-            // Get new value
             if (isset($userdata[$field])) {
                 $new_value = $userdata[$field];
             } else {
-                // Fetch current value from database
                 $current_user = get_userdata($user_id);
                 if ($current_user && isset($current_user->$field)) {
                     $new_value = $current_user->$field;
                 }
             }
 
-            // Log if changed
             if ($old_value !== $new_value) {
                 $this->log_change($user_id, $changed_by, $field, $label, $old_value, $new_value, 'update');
             }
         }
 
-        // Clean up
         unset($this->old_user_data[$user_id]);
     }
 
     /**
      * Log meta field change
      */
-    public function log_meta_change($meta_id, $user_id, $meta_key, $meta_value) {
+    public function log_meta_change($meta_id, $user_id, $meta_key, $meta_value)
+    {
         if (!isset($this->tracked_meta[$meta_key])) {
             return;
         }
@@ -382,15 +441,11 @@ class User_History {
             ? $this->old_user_meta[$user_id][$meta_key]
             : '';
 
-        // Handle role/capabilities specially - defer to shutdown to capture final state
         if ($meta_key === $this->capabilities_key) {
-            // Skip if already logged by set_user_role hook
             if (isset($this->role_logged[$user_id])) {
                 return;
             }
 
-            // Store old value for later comparison at shutdown
-            // Only store if not already pending (first change captures original state)
             if (!isset($this->pending_role_changes[$user_id])) {
                 $this->pending_role_changes[$user_id] = [
                     'old_value'  => $this->format_capabilities($old_value),
@@ -400,7 +455,6 @@ class User_History {
             return;
         }
 
-        // Only log if actually changed
         if ($old_value !== $meta_value) {
             $this->log_change(
                 $user_id,
@@ -413,7 +467,6 @@ class User_History {
             );
         }
 
-        // Clean up
         if (isset($this->old_user_meta[$user_id][$meta_key])) {
             unset($this->old_user_meta[$user_id][$meta_key]);
         }
@@ -422,7 +475,8 @@ class User_History {
     /**
      * Format capabilities array to readable string
      */
-    private function format_capabilities($caps) {
+    private function format_capabilities($caps)
+    {
         if (is_string($caps)) {
             $caps = maybe_unserialize($caps);
         }
@@ -437,13 +491,9 @@ class User_History {
 
     /**
      * Log role change (fires when set_role() is called)
-     *
-     * @param int    $user_id   The user ID
-     * @param string $role      The new role
-     * @param array  $old_roles The old roles
      */
-    public function log_role_change($user_id, $role, $old_roles) {
-        // Skip if already logged by updated_user_meta hook
+    public function log_role_change($user_id, $role, $old_roles)
+    {
         if (isset($this->role_logged[$user_id])) {
             return;
         }
@@ -451,12 +501,10 @@ class User_History {
         $old_role = !empty($old_roles) ? implode(', ', $old_roles) : '';
         $new_role = $role;
 
-        // Only log if actually changed
         if ($old_role === $new_role) {
             return;
         }
 
-        // Mark as logged to prevent duplicate from updated_user_meta
         $this->role_logged[$user_id] = true;
 
         $this->log_change(
@@ -466,28 +514,24 @@ class User_History {
             'Role',
             $old_role,
             $new_role,
-            'update'
+            'update',
+            ['action' => 'role_change']
         );
     }
 
     /**
      * Log pending role changes at shutdown
-     *
-     * This ensures we capture the final state after plugins like Members
-     * have finished all their role modifications.
      */
-    public function log_pending_role_changes() {
+    public function log_pending_role_changes()
+    {
         foreach ($this->pending_role_changes as $user_id => $data) {
-            // Skip if already logged by set_user_role hook
             if (isset($this->role_logged[$user_id])) {
                 continue;
             }
 
-            // Get the current (final) capabilities
             $current_caps = get_user_meta($user_id, $this->capabilities_key, true);
             $new_value = $this->format_capabilities($current_caps);
 
-            // Only log if actually changed
             if ($data['old_value'] !== $new_value) {
                 $this->log_change(
                     $user_id,
@@ -496,7 +540,8 @@ class User_History {
                     'Role',
                     $data['old_value'],
                     $new_value,
-                    'update'
+                    'update',
+                    ['action' => 'role_change_deferred']
                 );
             }
         }
@@ -505,7 +550,8 @@ class User_History {
     /**
      * Log new user creation
      */
-    public function log_user_creation($user_id, $userdata = []) {
+    public function log_user_creation($user_id, $userdata = [])
+    {
         $user = get_userdata($user_id);
         if (!$user) {
             return;
@@ -520,44 +566,66 @@ class User_History {
             'Account Created',
             '',
             $user->user_email,
-            'create'
+            'create',
+            ['action' => 'user_created']
         );
     }
 
     /**
      * Insert a change log entry
      */
-    private function log_change($user_id, $changed_by, $field_name, $field_label, $old_value, $new_value, $change_type = 'update') {
+    private function log_change($user_id, $changed_by, $field_name, $field_label, $old_value, $new_value, $change_type = 'update', $context = [])
+    {
         global $wpdb;
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
+        $original_field_name = $field_name;
+        $sanitized_field_name = sanitize_key($field_name);
+        $normalized_label = sanitize_text_field($field_label);
+        $sanitized_change_type = sanitize_key($change_type);
 
-        $wpdb->insert(
+        $old_value_prepared = $this->prepare_value_for_storage($original_field_name, $old_value);
+        $new_value_prepared = $this->prepare_value_for_storage($original_field_name, $new_value);
+
+        $search_tokens = $this->build_search_tokens($original_field_name, $old_value, $new_value);
+        $operator_snapshot = wp_json_encode($this->get_operator_snapshot($changed_by, $context));
+        $operator_details = $this->encrypt_value($operator_snapshot);
+
+        $inserted = $wpdb->insert(
             $table_name,
             [
-                'user_id'     => $user_id,
-                'changed_by'  => $changed_by,
-                'field_name'  => $field_name,
-                'field_label' => $field_label,
-                'old_value'   => $old_value,
-                'new_value'   => $new_value,
-                'change_type' => $change_type,
-                'created_at'  => current_time('mysql'),
+                'user_id'             => (int) $user_id,
+                'changed_by'          => (int) $changed_by,
+                'field_name'          => $sanitized_field_name,
+                'field_label'         => $normalized_label,
+                'old_value'           => $old_value_prepared,
+                'new_value'           => $new_value_prepared,
+                'search_tokens'       => $search_tokens,
+                'changed_by_details'  => $operator_details,
+                'change_type'         => $sanitized_change_type,
+                'created_at'          => current_time('mysql'),
             ],
-            ['%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s']
+            ['%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
         );
+
+        if (false === $inserted) {
+            error_log('User History: Failed to log change for user ' . (int) $user_id . ' - ' . $wpdb->last_error);
+            return false;
+        }
+
+        return true;
     }
 
     /**
      * Get history for a user
      */
-    public function get_user_history($user_id, $limit = 50, $offset = 0) {
+    public function get_user_history($user_id, $limit = 50, $offset = 0)
+    {
         global $wpdb;
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
         $results = $wpdb->get_results(
-            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name is safely constructed from $wpdb->prefix
             $wpdb->prepare(
                 "SELECT * FROM $table_name
                 WHERE user_id = %d
@@ -575,13 +643,17 @@ class User_History {
     /**
      * Get total history count for a user
      */
-    public function get_user_history_count($user_id) {
+    public function get_user_history_count($user_id)
+    {
+        if (!$this->user_can_manage_history($user_id)) {
+            return 0;
+        }
+
         global $wpdb;
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
         return (int) $wpdb->get_var(
-            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name is safely constructed from $wpdb->prefix
             $wpdb->prepare(
                 "SELECT COUNT(*) FROM $table_name WHERE user_id = %d",
                 $user_id
@@ -592,8 +664,9 @@ class User_History {
     /**
      * Enqueue admin assets
      */
-    public function enqueue_admin_assets($hook) {
-        if (!in_array($hook, ['user-edit.php', 'profile.php'])) {
+    public function enqueue_admin_assets($hook)
+    {
+        if (!in_array($hook, ['user-edit.php', 'profile.php'], true)) {
             return;
         }
 
@@ -612,8 +685,6 @@ class User_History {
             true
         );
 
-        // Get user ID from URL or current user
-        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Nonce not required for reading user_id, value is cast to int
         $user_id = isset($_GET['user_id']) ? (int) $_GET['user_id'] : get_current_user_id();
 
         wp_localize_script('user-history-admin', 'userHistoryData', [
@@ -637,15 +708,15 @@ class User_History {
     /**
      * Display history section on user edit page
      */
-    public function display_history_section($user) {
-        // Only show to admins
-        if (!current_user_can('edit_users')) {
+    public function display_history_section($user)
+    {
+        if (!$this->user_can_manage_history($user->ID)) {
             return;
         }
 
-        $history = $this->get_user_history($user->ID, 20);
+        $history = $this->filter_history_results($this->get_user_history($user->ID, 20));
         $total_count = $this->get_user_history_count($user->ID);
-        ?>
+?>
         <div class="user-history-section">
             <h2><?php esc_html_e('Account History', 'user-history'); ?></h2>
             <p class="description">
@@ -677,8 +748,7 @@ class User_History {
                         </thead>
                         <tbody id="user-history-tbody">
                             <?php
-                            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Output is escaped in render_history_rows()
-                            echo $this->render_history_rows($history);
+                            echo $this->render_history_rows($history); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                             ?>
                         </tbody>
                     </table>
@@ -686,7 +756,7 @@ class User_History {
                     <div class="user-history-actions">
                         <?php if ($total_count > 20): ?>
                             <button type="button" class="button" id="user-history-load-more"
-                                    data-offset="20" data-total="<?php echo esc_attr($total_count); ?>">
+                                data-offset="20" data-total="<?php echo esc_attr($total_count); ?>">
                                 <?php esc_html_e('Load More', 'user-history'); ?>
                             </button>
                         <?php endif; ?>
@@ -697,24 +767,22 @@ class User_History {
                 <?php endif; ?>
             </div>
         </div>
-        <?php
+    <?php
     }
 
     /**
      * Display delete user button on user edit page
      */
-    public function display_delete_user_button($user) {
-        // Only show to users who can delete users
-        if (!current_user_can('delete_users')) {
+    public function display_delete_user_button($user)
+    {
+        if (!$this->user_can_delete_account($user->ID)) {
             return;
         }
 
-        // Don't allow deleting yourself
         if ($user->ID === get_current_user_id()) {
             return;
         }
 
-        // Don't show for super admins on multisite (they can't be deleted this way)
         if (is_multisite() && is_super_admin($user->ID)) {
             return;
         }
@@ -723,7 +791,7 @@ class User_History {
             admin_url('users.php?action=delete&user=' . $user->ID),
             'bulk-users'
         );
-        ?>
+    ?>
         <div class="user-history-section user-history-delete-section">
             <h2><?php esc_html_e('Delete User', 'user-history'); ?></h2>
             <p class="description">
@@ -735,13 +803,14 @@ class User_History {
                 </a>
             </p>
         </div>
-        <?php
+<?php
     }
 
     /**
      * Render history table rows
      */
-    public function render_history_rows($history) {
+    public function render_history_rows($history)
+    {
         $output = '';
 
         foreach ($history as $entry) {
@@ -751,36 +820,34 @@ class User_History {
 
             $is_self = ($entry->user_id == $entry->changed_by);
 
+            $old_value = $this->prepare_value_for_display($entry->field_name, $entry->old_value);
+            $new_value = $this->prepare_value_for_display($entry->field_name, $entry->new_value);
+
             $output .= '<tr class="user-history-entry type-' . esc_attr($entry->change_type) . '">';
 
-            // Date column
             $output .= '<td class="column-date">';
             $output .= '<span class="history-date">' . esc_html(date_i18n(get_option('date_format'), strtotime($entry->created_at))) . '</span>';
             $output .= '<span class="history-time">' . esc_html(date_i18n(get_option('time_format'), strtotime($entry->created_at))) . '</span>';
             $output .= '</td>';
 
-            // Field column
             $output .= '<td class="column-field">';
             $output .= '<strong>' . esc_html($entry->field_label) . '</strong>';
             $output .= '</td>';
 
-            // Change column
             $output .= '<td class="column-change">';
             if ($entry->change_type === 'create') {
-                $output .= '<span class="history-new-value">' . esc_html($entry->new_value) . '</span>';
+                $output .= '<span class="history-new-value">' . esc_html($this->truncate_value($new_value)) . '</span>';
             } elseif ($entry->field_name === 'user_pass') {
-                // Password changes just show "Changed" - no values ever stored
                 $output .= '<span class="history-new-value">' . esc_html__('Changed', 'user-history') . '</span>';
             } else {
-                if (!empty($entry->old_value)) {
-                    $output .= '<span class="history-old-value">' . esc_html($this->truncate_value($entry->old_value)) . '</span>';
+                if ($old_value !== '') {
+                    $output .= '<span class="history-old-value">' . esc_html($this->truncate_value($old_value)) . '</span>';
                     $output .= ' <span class="history-arrow">&rarr;</span> ';
                 }
-                $output .= '<span class="history-new-value">' . esc_html($this->truncate_value($entry->new_value)) . '</span>';
+                $output .= '<span class="history-new-value">' . esc_html($this->truncate_value($new_value)) . '</span>';
             }
             $output .= '</td>';
 
-            // Changed by column
             $output .= '<td class="column-by">';
             if ($is_self) {
                 $output .= '<span class="history-self">' . esc_html__('Self', 'user-history') . '</span>';
@@ -798,31 +865,38 @@ class User_History {
     /**
      * Truncate long values for display
      */
-    private function truncate_value($value, $length = 50) {
-        if (strlen($value) <= $length) {
+    private function truncate_value($value, $length = 50)
+    {
+        if ($value === '') {
+            return '';
+        }
+
+        if (mb_strlen($value, 'UTF-8') <= $length) {
             return $value;
         }
-        return substr($value, 0, $length) . '...';
+
+        return mb_substr($value, 0, $length, 'UTF-8') . '...';
     }
 
     /**
      * AJAX handler for loading more history
      */
-    public function ajax_load_more_history() {
+    public function ajax_load_more_history()
+    {
         check_ajax_referer('user_history_nonce', 'nonce');
 
         if (!current_user_can('edit_users')) {
-            wp_send_json_error(['message' => 'Unauthorized']);
+            wp_send_json_error(['message' => __('Unauthorized', 'user-history')]);
         }
 
         $user_id = isset($_POST['user_id']) ? (int) $_POST['user_id'] : 0;
         $offset = isset($_POST['offset']) ? (int) $_POST['offset'] : 0;
 
-        if (!$user_id) {
-            wp_send_json_error(['message' => 'Invalid user ID']);
+        if (!$user_id || !$this->user_can_manage_history($user_id)) {
+            wp_send_json_error(['message' => __('You are not allowed to view this history.', 'user-history')]);
         }
 
-        $history = $this->get_user_history($user_id, 20, $offset);
+        $history = $this->filter_history_results($this->get_user_history($user_id, 20, $offset));
 
         if (empty($history)) {
             wp_send_json_success(['html' => '', 'hasMore' => false]);
@@ -833,8 +907,8 @@ class User_History {
         $has_more = ($offset + 20) < $total;
 
         wp_send_json_success([
-            'html'    => $html,
-            'hasMore' => $has_more,
+            'html'      => $html,
+            'hasMore'   => $has_more,
             'newOffset' => $offset + 20,
         ]);
     }
@@ -842,7 +916,8 @@ class User_History {
     /**
      * AJAX handler for clearing user history
      */
-    public function ajax_clear_history() {
+    public function ajax_clear_history()
+    {
         check_ajax_referer('user_history_clear', 'nonce');
 
         if (!current_user_can('edit_users')) {
@@ -851,12 +926,14 @@ class User_History {
 
         $user_id = isset($_POST['user_id']) ? (int) $_POST['user_id'] : 0;
 
-        if (!$user_id) {
-            wp_send_json_error(['message' => __('Invalid user ID', 'user-history')]);
+        if (!$user_id || !$this->user_can_manage_history($user_id)) {
+            wp_send_json_error(['message' => __('You are not allowed to modify this user.', 'user-history')]);
         }
 
         global $wpdb;
         $table_name = $wpdb->prefix . self::TABLE_NAME;
+
+        $transaction_started = $this->maybe_begin_transaction();
 
         $deleted = $wpdb->delete(
             $table_name,
@@ -865,8 +942,27 @@ class User_History {
         );
 
         if ($deleted === false) {
+            $this->rollback_transaction($transaction_started);
             wp_send_json_error(['message' => __('Failed to clear history', 'user-history')]);
         }
+
+        $log_success = $this->log_change(
+            $user_id,
+            get_current_user_id(),
+            'user_history_maintenance',
+            __('History Maintenance', 'user-history'),
+            '',
+            __('History log cleared by an operator.', 'user-history'),
+            'maintenance',
+            ['action' => 'history_clear']
+        );
+
+        if (!$log_success) {
+            $this->rollback_transaction($transaction_started);
+            wp_send_json_error(['message' => __('Clearing failed because the audit log could not be updated. No changes were saved.', 'user-history')]);
+        }
+
+        $this->commit_transaction($transaction_started);
 
         wp_send_json_success([
             'message' => __('History cleared successfully', 'user-history'),
@@ -876,102 +972,86 @@ class User_History {
     /**
      * AJAX handler for changing username
      */
-    public function ajax_change_username() {
+    public function ajax_change_username()
+    {
         $response = [
             'success'   => false,
             'new_nonce' => wp_create_nonce('user_history_change_username'),
         ];
 
-        // Check capability
         if (!current_user_can('edit_users')) {
             $response['message'] = __('You do not have permission to change usernames.', 'user-history');
             wp_send_json($response);
         }
 
-        // Validate nonce
         if (!check_ajax_referer('user_history_change_username', '_ajax_nonce', false)) {
             $response['message'] = __('Security check failed. Please refresh the page.', 'user-history');
             wp_send_json($response);
         }
 
-        // Validate request
         if (empty($_POST['new_username']) || empty($_POST['current_username'])) {
             $response['message'] = __('Invalid request.', 'user-history');
             wp_send_json($response);
         }
 
-        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitize_user handles sanitization
         $new_username = sanitize_user(trim(wp_unslash($_POST['new_username'])), true);
-        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitize_user handles sanitization
         $old_username = sanitize_user(trim(wp_unslash($_POST['current_username'])), true);
 
-        // Old username must exist
         $user_id = username_exists($old_username);
-        if (!$user_id) {
+        if (!$user_id || !$this->user_can_manage_history($user_id)) {
             $response['message'] = __('Invalid request.', 'user-history');
             wp_send_json($response);
         }
 
-        // If same username, nothing to do
         if ($new_username === $old_username) {
             $response['success'] = true;
             $response['message'] = __('Username unchanged.', 'user-history');
             wp_send_json($response);
         }
 
-        // Validate username length
-        if (mb_strlen($new_username) < 3 || mb_strlen($new_username) > 60) {
+        if (mb_strlen($new_username, 'UTF-8') < 3 || mb_strlen($new_username, 'UTF-8') > 60) {
             $response['message'] = __('Username must be between 3 and 60 characters.', 'user-history');
             wp_send_json($response);
         }
 
-        // Validate username characters
         if (!validate_username($new_username)) {
             $response['message'] = __('This username contains invalid characters.', 'user-history');
             wp_send_json($response);
         }
 
-        // Check illegal logins (using WordPress core filter)
-        // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core WP filter
         $illegal_logins = array_map('strtolower', (array) apply_filters('illegal_user_logins', []));
         if (in_array(strtolower($new_username), $illegal_logins, true)) {
             $response['message'] = __('Sorry, that username is not allowed.', 'user-history');
             wp_send_json($response);
         }
 
-        // Check if new username already exists
         if (username_exists($new_username)) {
-            $response['message'] = sprintf(__('The username "%s" is already taken.', 'user-history'), $new_username);
+            $response['message'] = sprintf(__('The username "%s" is already taken.', 'user-history'), esc_html($new_username));
             wp_send_json($response);
         }
 
-        // Change the username
-        $this->change_username($user_id, $old_username, $new_username);
+        $result = $this->change_username($user_id, $old_username, $new_username);
+
+        if (is_wp_error($result)) {
+            $response['message'] = $result->get_error_message();
+            wp_send_json($response);
+        }
 
         $response['success'] = true;
-        $response['message'] = sprintf(__('Username changed to "%s".', 'user-history'), $new_username);
+        $response['message'] = sprintf(__('Username changed to "%s".', 'user-history'), esc_html($new_username));
         wp_send_json($response);
     }
 
     /**
      * Change a user's username
      */
-    private function change_username($user_id, $old_username, $new_username) {
+    private function change_username($user_id, $old_username, $new_username)
+    {
         global $wpdb;
 
-        // Log the change before making it
-        $this->log_change(
-            $user_id,
-            get_current_user_id(),
-            'user_login',
-            'Username',
-            $old_username,
-            $new_username,
-            'update'
-        );
+        $transaction_started = $this->maybe_begin_transaction();
 
-        // Update user_login
-        $wpdb->update(
+        $updated = $wpdb->update(
             $wpdb->users,
             ['user_login' => $new_username],
             ['ID' => $user_id],
@@ -979,43 +1059,384 @@ class User_History {
             ['%d']
         );
 
-        // Update user_nicename if it matches the old username
-        $wpdb->query($wpdb->prepare(
+        if ($updated === false) {
+            $this->rollback_transaction($transaction_started);
+            return new WP_Error('user_history_username_failed', __('Failed to update username.', 'user-history'));
+        }
+
+        $nicename_update = $wpdb->query($wpdb->prepare(
             "UPDATE $wpdb->users SET user_nicename = %s WHERE ID = %d AND user_nicename = %s",
             sanitize_title($new_username),
             $user_id,
             sanitize_title($old_username)
         ));
 
-        // Update display_name if it matches the old username
-        $wpdb->query($wpdb->prepare(
+        if ($nicename_update === false) {
+            $this->rollback_transaction($transaction_started);
+            $wpdb->update($wpdb->users, ['user_login' => $old_username], ['ID' => $user_id], ['%s'], ['%d']);
+            return new WP_Error('user_history_nicename_failed', __('Failed to update nicename.', 'user-history'));
+        }
+
+        $display_update = $wpdb->query($wpdb->prepare(
             "UPDATE $wpdb->users SET display_name = %s WHERE ID = %d AND display_name = %s",
             $new_username,
             $user_id,
             $old_username
         ));
 
-        // Handle multisite super admin
+        if ($display_update === false) {
+            $this->rollback_transaction($transaction_started);
+            $wpdb->update($wpdb->users, ['user_login' => $old_username], ['ID' => $user_id], ['%s'], ['%d']);
+            return new WP_Error('user_history_display_failed', __('Failed to update display name.', 'user-history'));
+        }
+
+        $log_success = $this->log_change(
+            $user_id,
+            get_current_user_id(),
+            'user_login',
+            'Username',
+            $old_username,
+            $new_username,
+            'update',
+            ['action' => 'username_change']
+        );
+
+        if (!$log_success) {
+            $this->rollback_transaction($transaction_started);
+            $wpdb->update($wpdb->users, ['user_login' => $old_username], ['ID' => $user_id], ['%s'], ['%d']);
+            return new WP_Error('user_history_log_failed', __('Unable to record audit trail. Username change aborted.', 'user-history'));
+        }
+
+        $this->commit_transaction($transaction_started);
+
         if (is_multisite()) {
             $super_admins = (array) get_site_option('site_admins', ['admin']);
-            $key = array_search($old_username, $super_admins);
+            $key = array_search($old_username, $super_admins, true);
             if ($key !== false) {
                 $super_admins[$key] = $new_username;
                 update_site_option('site_admins', $super_admins);
             }
         }
 
-        // Clear user cache
         clean_user_cache($user_id);
 
-        /**
-         * Fires after a username has been changed
-         *
-         * @param int    $user_id      The user ID
-         * @param string $old_username The old username
-         * @param string $new_username The new username
-         */
         do_action('user_history_username_changed', $user_id, $old_username, $new_username);
+
+        return true;
+    }
+
+    /**
+     * Helper to determine if operator can manage a user's history
+     */
+    private function user_can_manage_history($user_id)
+    {
+        return current_user_can('edit_user', $user_id);
+    }
+
+    /**
+     * Helper to determine if operator can delete a user
+     */
+    private function user_can_delete_account($user_id)
+    {
+        return current_user_can('delete_user', $user_id) && $this->user_can_manage_history($user_id);
+    }
+
+    /**
+     * Filter history entries by operator permissions
+     */
+    private function filter_history_results($history)
+    {
+        if (empty($history) || !is_array($history)) {
+            return [];
+        }
+
+        return array_values(array_filter($history, function ($entry) {
+            return isset($entry->user_id) && $this->user_can_manage_history((int) $entry->user_id);
+        }));
+    }
+
+    /**
+     * Begin a transaction if supported
+     */
+    private function maybe_begin_transaction()
+    {
+        global $wpdb;
+        $result = $wpdb->query('START TRANSACTION');
+        return (false !== $result);
+    }
+
+    /**
+     * Commit transaction if started
+     */
+    private function commit_transaction($transaction_started)
+    {
+        if (!$transaction_started) {
+            return;
+        }
+        global $wpdb;
+        $wpdb->query('COMMIT');
+    }
+
+    /**
+     * Roll back transaction if started
+     */
+    private function rollback_transaction($transaction_started)
+    {
+        if (!$transaction_started) {
+            return;
+        }
+        global $wpdb;
+        $wpdb->query('ROLLBACK');
+    }
+
+    /**
+     * Determine if field is sensitive
+     */
+    private function is_field_sensitive($field_name)
+    {
+        $field = sanitize_key($field_name);
+        return in_array($field, $this->sensitive_fields, true);
+    }
+
+    /**
+     * Normalize value for storage
+     */
+    private function normalize_for_storage($value)
+    {
+        if (is_array($value)) {
+            $value = wp_json_encode($value);
+        }
+
+        $value = (string) $value;
+        $value = wp_unslash($value);
+        $value = preg_replace('/\s+/u', ' ', trim($value));
+
+        return $value;
+    }
+
+    /**
+     * Normalize value for display
+     */
+    private function normalize_for_display($value)
+    {
+        $value = (string) $value;
+        return preg_replace('/\s+/u', ' ', trim($value));
+    }
+
+    /**
+     * Prepare value for storage (with encryption if needed)
+     */
+    private function prepare_value_for_storage($field_name, $value)
+    {
+        if ($value === null || $value === '') {
+            return '';
+        }
+
+        $normalized = $this->normalize_for_storage($value);
+
+        if ($normalized === '') {
+            return '';
+        }
+
+        if ($this->is_field_sensitive($field_name)) {
+            return $this->encrypt_value($normalized);
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * Prepare value for display (with decryption if needed)
+     */
+    private function prepare_value_for_display($field_name, $value)
+    {
+        if ($value === null || $value === '') {
+            return '';
+        }
+
+        $prepared = $value;
+
+        if ($this->is_field_sensitive($field_name)) {
+            $prepared = $this->decrypt_value($value);
+        }
+
+        return $this->normalize_for_display($prepared);
+    }
+
+    /**
+     * Encrypt value using AES-256-CBC
+     */
+    private function encrypt_value($value)
+    {
+        $value = $this->normalize_for_storage($value);
+
+        if ($value === '') {
+            return '';
+        }
+
+        $cipher = 'aes-256-cbc';
+        $iv_length = openssl_cipher_iv_length($cipher);
+
+        try {
+            $iv = random_bytes($iv_length);
+        } catch (Exception $e) {
+            error_log('User History encryption error: ' . $e->getMessage());
+            return '';
+        }
+
+        $key = $this->get_encryption_key();
+        $encrypted = openssl_encrypt($value, $cipher, $key, OPENSSL_RAW_DATA, $iv);
+
+        if ($encrypted === false) {
+            return '';
+        }
+
+        return base64_encode($iv . $encrypted);
+    }
+
+    /**
+     * Decrypt value
+     */
+    private function decrypt_value($value)
+    {
+        $decoded = base64_decode($value, true);
+
+        if ($decoded === false) {
+            return '';
+        }
+
+        $cipher = 'aes-256-cbc';
+        $iv_length = openssl_cipher_iv_length($cipher);
+        $iv = mb_substr($decoded, 0, $iv_length, '8bit');
+        $encrypted = mb_substr($decoded, $iv_length, null, '8bit');
+
+        $key = $this->get_encryption_key();
+        $decrypted = openssl_decrypt($encrypted, $cipher, $key, OPENSSL_RAW_DATA, $iv);
+
+        if ($decrypted === false) {
+            return '';
+        }
+
+        return $decrypted;
+    }
+
+    /**
+     * Get encryption key
+     */
+    private function get_encryption_key()
+    {
+        if ($this->encryption_key) {
+            return $this->encryption_key;
+        }
+
+        $salt = wp_salt('auth');
+        $site_key = get_site_option('siteurl', home_url('/'));
+        $this->encryption_key = hash('sha256', $salt . 'user-history' . $site_key, true);
+
+        return $this->encryption_key;
+    }
+
+    /**
+     * Build hashed search tokens
+     */
+    private function build_search_tokens($field_name, $old_value, $new_value)
+    {
+        if (!in_array(sanitize_key($field_name), $this->searchable_fields, true)) {
+            return '';
+        }
+
+        $tokens = [];
+
+        foreach ([$old_value, $new_value] as $value) {
+            $tokens = array_merge($tokens, $this->tokenize_for_search($value));
+        }
+
+        if (empty($tokens)) {
+            return '';
+        }
+
+        $hashed_tokens = array_map([$this, 'hash_token'], array_unique($tokens));
+
+        return implode('|', $hashed_tokens);
+    }
+
+    /**
+     * Hash tokens derived from user search input
+     */
+    private function hash_tokens_from_term($term)
+    {
+        $tokens = $this->tokenize_for_search($term);
+
+        if (empty($tokens)) {
+            return [];
+        }
+
+        $tokens = array_slice(array_unique($tokens), 0, 5);
+
+        return array_map([$this, 'hash_token'], $tokens);
+    }
+
+    /**
+     * Tokenize values for search support
+     */
+    private function tokenize_for_search($value)
+    {
+        $normalized = mb_strtolower($this->normalize_for_storage($value), 'UTF-8');
+
+        if ($normalized === '') {
+            return [];
+        }
+
+        $tokens = [$normalized];
+
+        $words = preg_split('/\s+/u', $normalized);
+        foreach ($words as $word) {
+            $word = trim($word);
+            if ($word === '') {
+                continue;
+            }
+            $tokens[] = $word;
+
+            $length = mb_strlen($word, 'UTF-8');
+            for ($i = 0; $i <= $length - 3; $i++) {
+                $tokens[] = mb_substr($word, $i, 3, 'UTF-8');
+            }
+        }
+
+        return array_unique($tokens);
+    }
+
+    /**
+     * Hash a token with site-specific key
+     */
+    private function hash_token($token)
+    {
+        return hash('sha256', $this->get_encryption_key() . '|' . $token);
+    }
+
+    /**
+     * Build operator snapshot for audit trail
+     */
+    private function get_operator_snapshot($user_id, $context = [])
+    {
+        $snapshot = [
+            'operator_id' => (int) $user_id,
+            'timestamp'   => current_time('mysql'),
+            'ip'          => isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '',
+        ];
+
+        if ($user_id) {
+            $user = get_userdata($user_id);
+            if ($user) {
+                $snapshot['user_login'] = $user->user_login;
+                $snapshot['display_name'] = $user->display_name;
+                $snapshot['roles'] = $user->roles;
+            }
+        } else {
+            $snapshot['user_login'] = 'system';
+        }
+
+        return array_merge($snapshot, $context);
     }
 }
 

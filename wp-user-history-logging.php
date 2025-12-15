@@ -4,7 +4,7 @@
  * Plugin Name: WP User History Log
  * Plugin URI: https://github.com/technoogies/wp-user-history-log
  * Description: Tracks changes made to user accounts (name, email, username, nicename, etc.) Adds NiceName edit field and displays a history log on the user edit page.
- * Version: 1.0.1
+ * Version: 1.0.2
  * Author: Technoogies / gpt 5.1 codex | from WPZOOM user-history
  * Author URI: https://technoogies.com
  * License: GPL v2 or later
@@ -211,9 +211,14 @@ class User_History {
         add_action('show_user_profile', [$this, 'display_history_section'], 99);
         add_action('edit_user_profile', [$this, 'display_delete_user_button'], 100);
         add_action('show_user_profile', [$this, 'display_delete_user_button'], 100);
-
-        add_action('show_user_profile', [$this, 'render_nicename_field'], 20);
-        add_action('edit_user_profile', [$this, 'render_nicename_field'], 20);
+		
+	/** ( Replaced with line after these two )
+    *    add_action('show_user_profile', [$this, 'render_nicename_field'], 25); // Was 20 | Wrong place
+    *    add_action('edit_user_profile', [$this, 'render_nicename_field'], 25); // Was 20
+	**/
+		
+		add_action('personal_options', [$this, 'render_nicename_field']); // CLC Added | 2025-12-14 | Originally : add_action('personal_options', [$this, 'render_nicename_field']);
+				
         add_action('user_profile_update_errors', [$this, 'validate_nicename_submission'], 10, 3);
         add_action('personal_options_update', [$this, 'save_nicename_field']);
         add_action('edit_user_profile_update', [$this, 'save_nicename_field']);
@@ -649,36 +654,34 @@ class User_History {
         ]);
     }
 
-    /**
-     * Nicename field rendering
-     */
+	/**
+	* Nicename field rendering - now positioned in Name section after nickname
+ 	*/
     public function render_nicename_field($user) {
         if (!$this->current_operator_is_admin_role() || !current_user_can('edit_user', $user->ID)) {
             return;
         }
 
-        ?>
-        <h2><?php esc_html_e('Public Nicename', 'user-history'); ?></h2>
-        <table class="form-table" role="presentation">
-            <tr class="user-history-nicename-wrap">
-                <th scope="row">
-                    <label for="user_history_nicename"><?php esc_html_e('Nicename', 'user-history'); ?></label>
-                </th>
-                <td>
-                    <input type="text"
-                           name="user_nicename"
-                           id="user_history_nicename"
-                           class="regular-text"
-                           value="<?php echo esc_attr($user->user_nicename); ?>"
-                           aria-describedby="user-history-nicename-description" />
-                    <p class="description" id="user-history-nicename-description">
-                        <?php esc_html_e('Must be unique, URL-friendly, and can only be changed by administrators.', 'user-history'); ?>
-                    </p>
-                </td>
-            </tr>
-        </table>
-        <?php
-    }
+        	?>
+				<tr class="user-history-nicename-wrap">
+				<th scope="row">
+					<label for="user_history_nicename"><?php esc_html_e('Nicename', 'user-history'); ?></label>
+				</th>
+				<td>
+					<input type="text"
+						   name="user_nicename"
+						   id="user_history_nicename"
+						   class="regular-text"
+						   value="<?php echo esc_attr($user->user_nicename); ?>"
+						   aria-describedby="user-history-nicename-description" />
+					<p class="description" id="user-history-nicename-description">
+						<?php esc_html_e('Must be unique, URL-friendly, and can only be changed by administrators.', 'user-history'); ?>
+					</p>
+				</td>
+			</tr>
+
+    	<?php
+	}
 
     /**
      * Validate nicename submission

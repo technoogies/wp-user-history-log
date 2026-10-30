@@ -39,6 +39,8 @@ On the user edit page, click the "Change" link next to the username field. Enter
 
 On WordPress multisite, usernames belong to the shared network users table. Username changes therefore require both the `manage_network_users` capability and super-administrator status, in addition to the existing `edit_users` and target-level `edit_user` checks. Single-site authorization is unchanged.
 
+If the renamed account is a super administrator, the plugin prepares and verifies the `site_admins` mapping before committing identity changes. A failed mapping, user, nicename, display-name, or audit write leaves the previous username, nicename, display name, audit history, and super-administrator list unchanged.
+
 ### Searching by Previous Values
 
 On the All Users page, use the search box to search for any previous email, username, or name. Users who previously had matching values will appear in the results.
@@ -89,6 +91,10 @@ The history log appears at the bottom of the user edit page, showing all tracked
 Click "Change" next to the username field to reveal an inline form for changing the username.
 
 ## Changelog
+
+### 1.0.6
+- Made username changes and the multisite super-administrator mapping verify-and-compensate on failure
+- Added failure-injection coverage for mapping, identity, and audit writes
 
 ### 1.0.5
 - Restricted multisite username changes to network super administrators with `manage_network_users`

@@ -26,6 +26,7 @@ The suite checks that:
 - users cannot count another user's history without permission;
 - username changes reject insufficient permissions and invalid nonces;
 - subsite administrators cannot change network-global usernames while network super administrators can;
+- failed username, mapping, nicename, or audit writes leave identity, history, and site_admins consistent;
 - historical search input, unique token hashes, and serialized token storage remain within fixed budgets.
 
 These are regression tests for behavior that is already safe. They deliberately do not encode the known insecure behavior as “correct.”
@@ -34,7 +35,6 @@ These are regression tests for behavior that is already safe. They deliberately 
 
 The initial suite does not claim that the open security findings are fixed. Follow-up fixes need new tests for:
 
-- atomic rename and audit deletion failures;
 - historical-search query scoping;
 - authenticated, versioned encryption and key rotation;
 - audit retention and a dedicated audit-management capability.

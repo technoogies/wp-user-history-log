@@ -4,7 +4,7 @@
  * Plugin Name: WP User History Log
  * Plugin URI: https://github.com/technoogies/wp-user-history-log
  * Description: Tracks changes made to user accounts (name, email, username, nicename, etc.) Adds NiceName edit field and displays a history log on the user edit page.
- * Version: 1.0.5
+ * Version: 1.0.6
  * Author: Technoogies / gpt 5.1 codex | from WPZOOM user-history
  * Author URI: https://technoogies.com
  * License: GPL v2 or later
@@ -605,7 +605,7 @@ class User_History {
             return false;
         }
 
-        return true;
+        return (int) $wpdb->insert_id;
     }
 
     public function get_user_history($user_id, $limit = 50, $offset = 0) {
@@ -1123,7 +1123,70 @@ class User_History {
     private function change_username($user_id, $old_username, $new_username) {
         global $wpdb;
 
+        $user = get_userdata($user_id);
+        if (!$user) {
+            return new WP_Error('user_history_missing_user', __('User not found.', 'user-history'));
+        }
+
+        $original_identity = [
+            'user_login'    => $user->user_login,
+            'user_nicename' => $user->user_nicename,
+            'display_name'  => $user->display_name,
+        ];
+        $expected_identity = [
+            'user_login'    => $new_username,
+            'user_nicename' => ($user->user_nicename === sanitize_title($old_username))
+                ? sanitize_title($new_username)
+                : $user->user_nicename,
+            'display_name'  => ($user->display_name === $old_username)
+                ? $new_username
+                : $user->display_name,
+        ];
+
+        $mapping = $this->prepare_super_admin_mapping($old_username, $new_username);
+        if (is_wp_error($mapping)) {
+            return $mapping;
+        }
+
         $transaction_started = $this->maybe_begin_transaction();
+        $mapping_attempted = false;
+        $identity_written = false;
+        $audit_id = 0;
+
+        if ($mapping['needs_update']) {
+            $mapping_attempted = true;
+
+            if (
+                $this->should_force_username_change_failure('site_admins')
+                || !$this->persist_super_admin_mapping($mapping['next'])
+            ) {
+                return $this->fail_username_change(
+                    'user_history_super_admin_failed',
+                    __('Failed to update super administrator mapping.', 'user-history'),
+                    $transaction_started,
+                    $user_id,
+                    $original_identity,
+                    $mapping,
+                    $mapping_attempted,
+                    $identity_written,
+                    $audit_id
+                );
+            }
+        }
+
+        if ($this->should_force_username_change_failure('user_login')) {
+            return $this->fail_username_change(
+                'user_history_username_failed',
+                __('Failed to update username.', 'user-history'),
+                $transaction_started,
+                $user_id,
+                $original_identity,
+                $mapping,
+                $mapping_attempted,
+                $identity_written,
+                $audit_id
+            );
+        }
 
         $updated = $wpdb->update(
             $wpdb->users,
@@ -1134,37 +1197,117 @@ class User_History {
         );
 
         if ($updated === false) {
-            $this->rollback_transaction($transaction_started);
-            return new WP_Error('user_history_username_failed', __('Failed to update username.', 'user-history'));
+            return $this->fail_username_change(
+                'user_history_username_failed',
+                __('Failed to update username.', 'user-history'),
+                $transaction_started,
+                $user_id,
+                $original_identity,
+                $mapping,
+                $mapping_attempted,
+                $identity_written,
+                $audit_id
+            );
+        }
+        $identity_written = true;
+
+        if ($expected_identity['user_nicename'] !== $original_identity['user_nicename']) {
+            if ($this->should_force_username_change_failure('user_nicename')) {
+                return $this->fail_username_change(
+                    'user_history_nicename_failed',
+                    __('Failed to update nicename.', 'user-history'),
+                    $transaction_started,
+                    $user_id,
+                    $original_identity,
+                    $mapping,
+                    $mapping_attempted,
+                    $identity_written,
+                    $audit_id
+                );
+            }
+
+            $nicename_update = $wpdb->update(
+                $wpdb->users,
+                ['user_nicename' => $expected_identity['user_nicename']],
+                [
+                    'ID'            => $user_id,
+                    'user_nicename' => $original_identity['user_nicename'],
+                ],
+                ['%s'],
+                ['%d', '%s']
+            );
+
+            if ($nicename_update === false) {
+                return $this->fail_username_change(
+                    'user_history_nicename_failed',
+                    __('Failed to update nicename.', 'user-history'),
+                    $transaction_started,
+                    $user_id,
+                    $original_identity,
+                    $mapping,
+                    $mapping_attempted,
+                    $identity_written,
+                    $audit_id
+                );
+            }
         }
 
-        $nicename_update = $wpdb->query($wpdb->prepare(
-            "UPDATE $wpdb->users SET user_nicename = %s WHERE ID = %d AND user_nicename = %s",
-            sanitize_title($new_username),
-            $user_id,
-            sanitize_title($old_username)
-        ));
+        if ($expected_identity['display_name'] !== $original_identity['display_name']) {
+            if ($this->should_force_username_change_failure('display_name')) {
+                return $this->fail_username_change(
+                    'user_history_display_failed',
+                    __('Failed to update display name.', 'user-history'),
+                    $transaction_started,
+                    $user_id,
+                    $original_identity,
+                    $mapping,
+                    $mapping_attempted,
+                    $identity_written,
+                    $audit_id
+                );
+            }
 
-        if ($nicename_update === false) {
-            $this->rollback_transaction($transaction_started);
-            $wpdb->update($wpdb->users, ['user_login' => $old_username], ['ID' => $user_id], ['%s'], ['%d']);
-            return new WP_Error('user_history_nicename_failed', __('Failed to update nicename.', 'user-history'));
+            $display_update = $wpdb->update(
+                $wpdb->users,
+                ['display_name' => $expected_identity['display_name']],
+                [
+                    'ID'           => $user_id,
+                    'display_name' => $original_identity['display_name'],
+                ],
+                ['%s'],
+                ['%d', '%s']
+            );
+
+            if ($display_update === false) {
+                return $this->fail_username_change(
+                    'user_history_display_failed',
+                    __('Failed to update display name.', 'user-history'),
+                    $transaction_started,
+                    $user_id,
+                    $original_identity,
+                    $mapping,
+                    $mapping_attempted,
+                    $identity_written,
+                    $audit_id
+                );
+            }
         }
 
-        $display_update = $wpdb->query($wpdb->prepare(
-            "UPDATE $wpdb->users SET display_name = %s WHERE ID = %d AND display_name = %s",
-            $new_username,
-            $user_id,
-            $old_username
-        ));
-
-        if ($display_update === false) {
-            $this->rollback_transaction($transaction_started);
-            $wpdb->update($wpdb->users, ['user_login' => $old_username], ['ID' => $user_id], ['%s'], ['%d']);
-            return new WP_Error('user_history_display_failed', __('Failed to update display name.', 'user-history'));
+        if ($this->should_force_username_change_failure('audit')) {
+            return $this->fail_username_change(
+                'user_history_log_failed',
+                __('Unable to record audit trail. Username change aborted.', 'user-history'),
+                $transaction_started,
+                $user_id,
+                $original_identity,
+                $mapping,
+                $mapping_attempted,
+                $identity_written,
+                $audit_id
+            );
         }
 
-        $log_success = $this->log_change(
+        $audit_id = $this->log_change(
             $user_id,
             get_current_user_id(),
             'user_login',
@@ -1175,21 +1318,54 @@ class User_History {
             ['action' => 'username_change']
         );
 
-        if (!$log_success) {
-            $this->rollback_transaction($transaction_started);
-            $wpdb->update($wpdb->users, ['user_login' => $old_username], ['ID' => $user_id], ['%s'], ['%d']);
-            return new WP_Error('user_history_log_failed', __('Unable to record audit trail. Username change aborted.', 'user-history'));
+        if (!$audit_id) {
+            return $this->fail_username_change(
+                'user_history_log_failed',
+                __('Unable to record audit trail. Username change aborted.', 'user-history'),
+                $transaction_started,
+                $user_id,
+                $original_identity,
+                $mapping,
+                $mapping_attempted,
+                $identity_written,
+                $audit_id
+            );
+        }
+
+        if (
+            !$this->user_identity_matches($user_id, $expected_identity)
+            || ($mapping['needs_update'] && !$this->super_admin_mapping_matches($mapping['next']))
+        ) {
+            return $this->fail_username_change(
+                'user_history_verify_failed',
+                __('Username change could not be verified and was reversed.', 'user-history'),
+                $transaction_started,
+                $user_id,
+                $original_identity,
+                $mapping,
+                $mapping_attempted,
+                $identity_written,
+                $audit_id
+            );
         }
 
         $this->commit_transaction($transaction_started);
 
-        if (is_multisite()) {
-            $super_admins = (array) get_site_option('site_admins', ['admin']);
-            $key = array_search($old_username, $super_admins, true);
-            if ($key !== false) {
-                $super_admins[$key] = $new_username;
-                update_site_option('site_admins', $super_admins);
-            }
+        if (
+            !$this->user_identity_matches($user_id, $expected_identity)
+            || ($mapping['needs_update'] && !$this->super_admin_mapping_matches($mapping['next']))
+        ) {
+            return $this->fail_username_change(
+                'user_history_commit_verify_failed',
+                __('Username change could not be verified and was reversed.', 'user-history'),
+                false,
+                $user_id,
+                $original_identity,
+                $mapping,
+                $mapping_attempted,
+                true,
+                $audit_id
+            );
         }
 
         clean_user_cache($user_id);
@@ -1197,6 +1373,156 @@ class User_History {
         do_action('user_history_username_changed', $user_id, $old_username, $new_username);
 
         return true;
+    }
+
+    /**
+     * Build the intended super-administrator login list before mutating identity.
+     */
+    private function prepare_super_admin_mapping($old_username, $new_username) {
+        if (!is_multisite()) {
+            return [
+                'needs_update' => false,
+                'original'     => [],
+                'next'         => [],
+            ];
+        }
+
+        unset($GLOBALS['super_admins']);
+
+        $original = array_values((array) get_site_option('site_admins', ['admin']));
+        $key = array_search($old_username, $original, true);
+
+        if ($key === false) {
+            return [
+                'needs_update' => false,
+                'original'     => $original,
+                'next'         => $original,
+            ];
+        }
+
+        if (in_array($new_username, $original, true)) {
+            return new WP_Error(
+                'user_history_super_admin_conflict',
+                __('That username is already listed as a super administrator.', 'user-history')
+            );
+        }
+
+        $next = $original;
+        $next[$key] = $new_username;
+
+        return [
+            'needs_update' => true,
+            'original'     => $original,
+            'next'         => array_values($next),
+        ];
+    }
+
+    private function persist_super_admin_mapping($admins) {
+        unset($GLOBALS['super_admins']);
+        $admins = array_values((array) $admins);
+
+        update_site_option('site_admins', $admins);
+        $this->remember_super_admin_mapping($admins);
+
+        return $this->super_admin_mapping_matches($admins);
+    }
+
+    private function remember_super_admin_mapping($admins) {
+        $network_id = function_exists('get_current_network_id') ? get_current_network_id() : 1;
+        $cache_key = $network_id . ':site_admins';
+
+        wp_cache_delete($cache_key, 'site-options');
+        wp_cache_set($cache_key, array_values((array) $admins), 'site-options');
+    }
+
+    private function super_admin_mapping_matches($expected) {
+        unset($GLOBALS['super_admins']);
+
+        $current = array_values((array) get_site_option('site_admins', ['admin']));
+        $expected = array_values((array) $expected);
+
+        return $current === $expected;
+    }
+
+    private function user_identity_matches($user_id, $expected) {
+        global $wpdb;
+
+        $row = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT user_login, user_nicename, display_name FROM {$wpdb->users} WHERE ID = %d",
+                $user_id
+            ),
+            ARRAY_A
+        );
+
+        return is_array($row)
+            && $row['user_login'] === $expected['user_login']
+            && $row['user_nicename'] === $expected['user_nicename']
+            && $row['display_name'] === $expected['display_name'];
+    }
+
+    private function restore_user_identity($user_id, $identity) {
+        global $wpdb;
+
+        $wpdb->update(
+            $wpdb->users,
+            [
+                'user_login'    => $identity['user_login'],
+                'user_nicename' => $identity['user_nicename'],
+                'display_name'  => $identity['display_name'],
+            ],
+            ['ID' => $user_id],
+            ['%s', '%s', '%s'],
+            ['%d']
+        );
+    }
+
+    private function delete_history_row($history_id) {
+        global $wpdb;
+
+        if ((int) $history_id < 1) {
+            return;
+        }
+
+        $wpdb->delete(
+            $wpdb->prefix . self::TABLE_NAME,
+            ['id' => (int) $history_id],
+            ['%d']
+        );
+    }
+
+    private function should_force_username_change_failure($stage) {
+        return (bool) apply_filters('user_history_force_username_change_failure', false, $stage);
+    }
+
+    private function fail_username_change(
+        $code,
+        $message,
+        $transaction_started,
+        $user_id,
+        $original_identity,
+        $mapping,
+        $mapping_attempted,
+        $identity_written,
+        $audit_id
+    ) {
+        $this->rollback_transaction($transaction_started);
+
+        if ($audit_id && !$transaction_started) {
+            $this->delete_history_row($audit_id);
+        }
+
+        if ($identity_written || $transaction_started) {
+            $this->restore_user_identity($user_id, $original_identity);
+        }
+
+        if ($mapping_attempted) {
+            $this->persist_super_admin_mapping($mapping['original']);
+        }
+
+        clean_user_cache($user_id);
+
+        return new WP_Error($code, $message);
     }
 
     private function user_can_manage_history($user_id) {

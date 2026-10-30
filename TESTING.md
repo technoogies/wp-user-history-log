@@ -23,7 +23,8 @@ The suite checks that:
 - password changes store an event but no password value or hash;
 - history output escapes HTML and script payloads;
 - users cannot count another user's history without permission;
-- username changes reject insufficient permissions and invalid nonces.
+- username changes reject insufficient permissions and invalid nonces;
+- historical search input, unique token hashes, and serialized token storage remain within fixed budgets.
 
 These are regression tests for behavior that is already safe. They deliberately do not encode the known insecure behavior as “correct.”
 
@@ -31,7 +32,6 @@ These are regression tests for behavior that is already safe. They deliberately 
 
 The initial suite does not claim that the open security findings are fixed. Follow-up fixes need new tests for:
 
-- maximum input and search-token budgets;
 - multisite network authority for username changes;
 - atomic rename and audit deletion failures;
 - historical-search query scoping;

@@ -41,6 +41,14 @@ On the user edit page, click the "Change" link next to the username field. Enter
 
 On the All Users page, use the search box to search for any previous email, username, or name. Users who previously had matching values will appear in the results.
 
+Historical search indexing uses conservative resource limits:
+
+- Searchable values up to 1,024 bytes are eligible for indexing.
+- Each history entry stores at most 128 unique token hashes and 8,192 serialized token bytes.
+- Search requests use at most five token hashes.
+
+WordPress still saves a profile value that exceeds 1,024 bytes. To avoid copying or indexing oversized sensitive content, the history entry stores an encrypted fixed omission notice instead of that value. Normal usernames, email addresses, display names, and personal names remain well within the limit.
+
 ### Clearing History
 
 On the user edit page, scroll down to the Account History section and click the "Clear Log" button.
@@ -79,6 +87,11 @@ The history log appears at the bottom of the user edit page, showing all tracked
 Click "Change" next to the username field to reveal an inline form for changing the username.
 
 ## Changelog
+
+### 1.0.4
+- Bounded historical search input, unique tokens, and serialized token storage
+- Replaced oversized searchable audit values with an encrypted omission notice
+- Cleared legacy search-token payloads that exceed the new storage budget
 
 ### 1.0.3
 - Added Delete User button on user edit page for quick access

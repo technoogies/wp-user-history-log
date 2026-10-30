@@ -27,6 +27,8 @@ The suite checks that:
 - username changes reject insufficient permissions and invalid nonces;
 - subsite administrators cannot change network-global usernames while network super administrators can;
 - failed username, mapping, nicename, or audit writes leave identity, history, and site_admins consistent;
+- simulated history-clear and username-change insert, update, and commit failures leave records unchanged;
+- a nontransactional history or users table configuration is detected and refused;
 - historical search input, unique token hashes, and serialized token storage remain within fixed budgets.
 
 These are regression tests for behavior that is already safe. They deliberately do not encode the known insecure behavior as “correct.”
@@ -39,7 +41,7 @@ The initial suite does not claim that the open security findings are fixed. Foll
 - authenticated, versioned encryption and key rotation;
 - audit retention and a dedicated audit-management capability.
 
-The CI database uses InnoDB, so it cannot reproduce the known nontransactional-table failure without a dedicated fixture. The suite also does not replace browser testing, load testing, privacy review, or testing against every third-party plugin.
+Nontransactional engines are simulated with the `user_history_table_engine` filter so CI can refuse MyISAM-like configurations without converting WordPress core tables. The suite also does not replace browser testing, load testing, privacy review, or testing against every third-party plugin.
 
 ## Optional local execution
 

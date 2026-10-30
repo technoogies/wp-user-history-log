@@ -4,7 +4,7 @@ Tags: user history, user log, audit log, change username, user tracking
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.0.5
+Stable tag: 1.0.6
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -50,7 +50,7 @@ On the user edit page, click the "Change" link next to the username field. Enter
 
 = Who can change usernames on multisite? =
 
-Because usernames are shared across the network, multisite username changes require a network super administrator with the manage_network_users capability. Single-site permissions are unchanged.
+Because usernames are shared across the network, multisite username changes require a network super administrator with the manage_network_users capability. Single-site permissions are unchanged. Super-administrator mapping is updated only after the intended list is prepared and verified; a failed write restores the previous identity, audit history, and mapping.
 
 = Does this plugin store passwords? =
 
@@ -94,6 +94,10 @@ On the user edit page, scroll down to the Account History section and click the 
 
 == Changelog ==
 
+= 1.0.6 =
+* Made username changes and the multisite super-administrator mapping verify-and-compensate on failure
+* Added failure-injection coverage for mapping, identity, and audit writes
+
 = 1.0.5 =
 * Restricted multisite username changes to network super administrators with manage_network_users
 * Added single-site and multisite authorization regression coverage
@@ -127,6 +131,9 @@ On the user edit page, scroll down to the Account History section and click the 
 * Account History display on user edit page
 
 == Upgrade Notice ==
+
+= 1.0.6 =
+Makes username changes and super-administrator mapping failure-safe.
 
 = 1.0.5 =
 Restricts network-global username changes to appropriately authorized multisite administrators.

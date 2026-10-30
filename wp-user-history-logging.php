@@ -4,7 +4,7 @@
  * Plugin Name: WP User History Log
  * Plugin URI: https://github.com/technoogies/wp-user-history-log
  * Description: Tracks changes made to user accounts (name, email, username, nicename, etc.) Adds NiceName edit field and displays a history log on the user edit page.
- * Version: 1.0.4
+ * Version: 1.0.5
  * Author: Technoogies / gpt 5.1 codex | from WPZOOM user-history
  * Author URI: https://technoogies.com
  * License: GPL v2 or later
@@ -1057,7 +1057,7 @@ class User_History {
             'new_nonce' => wp_create_nonce('user_history_change_username'),
         ];
 
-        if (!current_user_can('edit_users')) {
+        if (!$this->current_operator_can_change_usernames()) {
             $response['message'] = __('You do not have permission to change usernames.', 'user-history');
             wp_send_json($response);
         }
@@ -1201,6 +1201,21 @@ class User_History {
 
     private function user_can_manage_history($user_id) {
         return current_user_can('edit_user', $user_id);
+    }
+
+    /**
+     * Username changes affect the network-global users table on multisite.
+     */
+    private function current_operator_can_change_usernames() {
+        if (!current_user_can('edit_users')) {
+            return false;
+        }
+
+        if (!is_multisite()) {
+            return true;
+        }
+
+        return is_super_admin(get_current_user_id()) && current_user_can('manage_network_users');
     }
 
     private function user_can_delete_account($user_id) {

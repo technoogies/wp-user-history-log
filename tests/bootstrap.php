@@ -21,6 +21,10 @@ if (!file_exists($_tests_dir . '/includes/functions.php')) {
 require_once dirname(__DIR__) . '/vendor/yoast/phpunit-polyfills/phpunitpolyfills-autoload.php';
 require_once $_tests_dir . '/includes/functions.php';
 
+if ('1' === getenv('WP_TESTS_MULTISITE') && !defined('WP_TESTS_MULTISITE')) {
+    define('WP_TESTS_MULTISITE', true);
+}
+
 tests_add_filter(
     'muplugins_loaded',
     static function () {

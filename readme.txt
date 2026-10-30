@@ -4,7 +4,7 @@ Tags: user history, user log, audit log, change username, user tracking
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.0.4
+Stable tag: 1.0.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -48,6 +48,10 @@ Go to Users > All Users, click on any user to edit their profile, and scroll dow
 
 On the user edit page, click the "Change" link next to the username field. Enter the new username and click "Change" to save.
 
+= Who can change usernames on multisite? =
+
+Because usernames are shared across the network, multisite username changes require a network super administrator with the manage_network_users capability. Single-site permissions are unchanged.
+
 = Does this plugin store passwords? =
 
 No. The plugin only logs that a password was changed, along with the date and who changed it. No password values (hashed or otherwise) are ever stored.
@@ -90,6 +94,10 @@ On the user edit page, scroll down to the Account History section and click the 
 
 == Changelog ==
 
+= 1.0.5 =
+* Restricted multisite username changes to network super administrators with manage_network_users
+* Added single-site and multisite authorization regression coverage
+
 = 1.0.4 =
 * Bounded historical search input, unique tokens, and serialized token storage
 * Replaced oversized searchable audit values with an encrypted omission notice
@@ -119,6 +127,9 @@ On the user edit page, scroll down to the Account History section and click the 
 * Account History display on user edit page
 
 == Upgrade Notice ==
+
+= 1.0.5 =
+Restricts network-global username changes to appropriately authorized multisite administrators.
 
 = 1.0.4 =
 Limits historical search resource use and removes oversized legacy token payloads.

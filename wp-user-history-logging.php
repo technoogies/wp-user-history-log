@@ -4,7 +4,7 @@
  * Plugin Name: WP User History Log
  * Plugin URI: https://github.com/technoogies/wp-user-history-log
  * Description: Tracks changes made to user accounts (name, email, username, nicename, etc.) Adds NiceName edit field and displays a history log on the user edit page.
- * Version: 1.0.2
+ * Version: 1.0.4
  * Author: Technoogies / gpt 5.1 codex | from WPZOOM user-history
  * Author URI: https://technoogies.com
  * License: GPL v2 or later
@@ -110,6 +110,18 @@ class User_History {
     ];
 
     /**
+     * Resource limits for historical search indexing.
+     *
+     * Values above the byte limit remain saved by WordPress, but the audit log
+     * stores a fixed placeholder and does not index the sensitive content.
+     */
+    private const MAX_SEARCHABLE_VALUE_BYTES = 1024;
+    private const MAX_SEARCH_TOKEN_COUNT = 128;
+    private const MAX_SEARCH_TOKEN_BYTES = 8192;
+    private const MAX_SEARCH_QUERY_TOKENS = 5;
+    private const OVERSIZED_VALUE_PLACEHOLDER = '[value omitted: exceeds 1024-byte audit limit]';
+
+    /**
      * Pending sanitized nicenames keyed by user ID
      */
     private $pending_nicename_values = [];
@@ -147,7 +159,9 @@ class User_History {
      */
     public function activate() {
         $this->create_table();
-        update_option('user_history_version', USER_HISTORY_VERSION);
+        if ($this->limit_existing_search_tokens()) {
+            update_option('user_history_version', USER_HISTORY_VERSION);
+        }
     }
 
     /**
@@ -240,8 +254,29 @@ class User_History {
 
         if (version_compare($current_version, USER_HISTORY_VERSION, '<')) {
             $this->create_table();
-            update_option('user_history_version', USER_HISTORY_VERSION);
+            if ($this->limit_existing_search_tokens()) {
+                update_option('user_history_version', USER_HISTORY_VERSION);
+            }
         }
+    }
+
+    /**
+     * Remove legacy token payloads that exceed the current storage budget.
+     */
+    private function limit_existing_search_tokens() {
+        global $wpdb;
+
+        $table_name = $wpdb->prefix . self::TABLE_NAME;
+        $updated = $wpdb->query(
+            $wpdb->prepare(
+                "UPDATE $table_name
+                SET search_tokens = ''
+                WHERE OCTET_LENGTH(search_tokens) > %d",
+                self::MAX_SEARCH_TOKEN_BYTES
+            )
+        );
+
+        return false !== $updated;
     }
 
     /**
@@ -1231,7 +1266,11 @@ class User_History {
             return '';
         }
 
-        $normalized = $this->normalize_for_storage($value);
+        if ($this->is_searchable_field($field_name) && !$this->search_value_is_within_limit($value)) {
+            $normalized = self::OVERSIZED_VALUE_PLACEHOLDER;
+        } else {
+            $normalized = $this->normalize_for_storage($value);
+        }
 
         if ($normalized === '') {
             return '';
@@ -1320,45 +1359,77 @@ class User_History {
     }
 
     private function build_search_tokens($field_name, $old_value, $new_value) {
-        if (!in_array(sanitize_key($field_name), $this->searchable_fields, true)) {
+        if (!$this->is_searchable_field($field_name)) {
             return '';
         }
 
-        $tokens = [];
+        $token_sets = [
+            $this->tokenize_for_search($old_value, self::MAX_SEARCH_TOKEN_COUNT),
+            $this->tokenize_for_search($new_value, self::MAX_SEARCH_TOKEN_COUNT),
+        ];
+        $hashed_tokens = [];
+        $serialized_bytes = 0;
 
-        foreach ([$old_value, $new_value] as $value) {
-            $tokens = array_merge($tokens, $this->tokenize_for_search($value));
+        for ($index = 0; $index < self::MAX_SEARCH_TOKEN_COUNT; $index++) {
+            $found_token = false;
+            foreach ($token_sets as $tokens) {
+                if (!isset($tokens[$index])) {
+                    continue;
+                }
+
+                $found_token = true;
+                $token = $tokens[$index];
+                $hash = $this->hash_token($token);
+
+                if (isset($hashed_tokens[$hash])) {
+                    continue;
+                }
+
+                $separator_bytes = empty($hashed_tokens) ? 0 : 1;
+                $additional_bytes = $separator_bytes + strlen($hash);
+
+                if (
+                    count($hashed_tokens) >= self::MAX_SEARCH_TOKEN_COUNT
+                    || $serialized_bytes + $additional_bytes > self::MAX_SEARCH_TOKEN_BYTES
+                ) {
+                    break 2;
+                }
+
+                $hashed_tokens[$hash] = true;
+                $serialized_bytes += $additional_bytes;
+            }
+
+            if (!$found_token) {
+                break;
+            }
         }
 
-        if (empty($tokens)) {
-            return '';
-        }
-
-        $hashed_tokens = array_map([$this, 'hash_token'], array_unique($tokens));
-
-        return implode('|', $hashed_tokens);
+        return implode('|', array_keys($hashed_tokens));
     }
 
     private function hash_tokens_from_term($term) {
-        $tokens = $this->tokenize_for_search($term);
+        $tokens = $this->tokenize_for_search($term, self::MAX_SEARCH_QUERY_TOKENS);
 
         if (empty($tokens)) {
             return [];
         }
 
-        $tokens = array_slice(array_unique($tokens), 0, 5);
-
         return array_map([$this, 'hash_token'], $tokens);
     }
 
-    private function tokenize_for_search($value) {
+    private function tokenize_for_search($value, $max_tokens = self::MAX_SEARCH_TOKEN_COUNT) {
+        if ($max_tokens < 1 || !$this->search_value_is_within_limit($value)) {
+            return [];
+        }
+
         $normalized = mb_strtolower($this->normalize_for_storage($value), 'UTF-8');
 
         if ($normalized === '') {
             return [];
         }
 
-        $tokens = [$normalized];
+        $tokens = [];
+        $tokens[$normalized] = true;
 
         $words = preg_split('/\s+/u', $normalized);
         foreach ($words as $word) {
@@ -1366,15 +1437,34 @@ class User_History {
             if ($word === '') {
                 continue;
             }
-            $tokens[] = $word;
+
+            $tokens[$word] = true;
+            if (count($tokens) >= $max_tokens) {
+                break;
+            }
 
             $length = mb_strlen($word, 'UTF-8');
             for ($i = 0; $i <= $length - 3; $i++) {
-                $tokens[] = mb_substr($word, $i, 3, 'UTF-8');
+                $tokens[mb_substr($word, $i, 3, 'UTF-8')] = true;
+                if (count($tokens) >= $max_tokens) {
+                    break 2;
+                }
             }
         }
 
-        return array_unique($tokens);
+        return array_keys($tokens);
+    }
+
+    private function is_searchable_field($field_name) {
+        return in_array(sanitize_key($field_name), $this->searchable_fields, true);
+    }
+
+    private function search_value_is_within_limit($value) {
+        if (!is_scalar($value)) {
+            return false;
+        }
+
+        return strlen((string) $value) <= self::MAX_SEARCHABLE_VALUE_BYTES;
     }
 
     private function hash_token($token) {

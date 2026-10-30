@@ -4,7 +4,7 @@ Tags: user history, user log, audit log, change username, user tracking
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.0.3
+Stable tag: 1.0.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -90,6 +90,11 @@ On the user edit page, scroll down to the Account History section and click the 
 
 == Changelog ==
 
+= 1.0.4 =
+* Bounded historical search input, unique tokens, and serialized token storage
+* Replaced oversized searchable audit values with an encrypted omission notice
+* Cleared legacy search-token payloads that exceed the new storage budget
+
 = 1.0.3 =
 * Added Delete User button on user edit page for quick access
 * Added Requires at least and Requires PHP headers to plugin file
@@ -114,6 +119,9 @@ On the user edit page, scroll down to the Account History section and click the 
 * Account History display on user edit page
 
 == Upgrade Notice ==
+
+= 1.0.4 =
+Limits historical search resource use and removes oversized legacy token payloads.
 
 = 1.0.3 =
 Adds Delete User button on user edit page. Code improvements for WordPress.org compliance.

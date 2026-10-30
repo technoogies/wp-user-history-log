@@ -13,5 +13,8 @@
         <testsuite name="integration">
             <directory suffix="Test.php">tests/Integration</directory>
         </testsuite>
+        <testsuite name="multisite">
+            <directory suffix="Test.php">tests/Multisite</directory>
+        </testsuite>
     </testsuites>
 </phpunit>

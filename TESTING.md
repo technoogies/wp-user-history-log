@@ -6,6 +6,7 @@ The CI matrix covers:
 
 - PHP 7.4 with WordPress 6.0, the plugin's declared minimums.
 - PHP 8.3 with the latest stable WordPress release.
+- Single-site and multisite WordPress authorization.
 - PHP and JavaScript syntax.
 - Unit-level source security invariants.
 - WordPress integration tests using a real temporary MySQL database.
@@ -24,6 +25,7 @@ The suite checks that:
 - history output escapes HTML and script payloads;
 - users cannot count another user's history without permission;
 - username changes reject insufficient permissions and invalid nonces;
+- subsite administrators cannot change network-global usernames while network super administrators can;
 - historical search input, unique token hashes, and serialized token storage remain within fixed budgets.
 
 These are regression tests for behavior that is already safe. They deliberately do not encode the known insecure behavior as “correct.”
@@ -32,7 +34,6 @@ These are regression tests for behavior that is already safe. They deliberately 
 
 The initial suite does not claim that the open security findings are fixed. Follow-up fixes need new tests for:
 
-- multisite network authority for username changes;
 - atomic rename and audit deletion failures;
 - historical-search query scoping;
 - authenticated, versioned encryption and key rotation;
@@ -49,6 +50,7 @@ composer install
 bash bin/install-wp-tests.sh wordpress_test root root localhost latest
 composer lint
 composer test
+composer test:multisite
 node --check assets/js/admin.js
 composer audit
 ```
@@ -60,4 +62,5 @@ Useful focused commands:
 ```bash
 composer test:unit
 composer test:integration
+composer test:multisite
 ```

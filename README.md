@@ -37,6 +37,8 @@ Go to **Users > All Users**, click on any user to edit their profile, and scroll
 
 On the user edit page, click the "Change" link next to the username field. Enter the new username and click "Change" to save.
 
+On WordPress multisite, usernames belong to the shared network users table. Username changes therefore require both the `manage_network_users` capability and super-administrator status, in addition to the existing `edit_users` and target-level `edit_user` checks. Single-site authorization is unchanged.
+
 ### Searching by Previous Values
 
 On the All Users page, use the search box to search for any previous email, username, or name. Users who previously had matching values will appear in the results.
@@ -87,6 +89,10 @@ The history log appears at the bottom of the user edit page, showing all tracked
 Click "Change" next to the username field to reveal an inline form for changing the username.
 
 ## Changelog
+
+### 1.0.5
+- Restricted multisite username changes to network super administrators with `manage_network_users`
+- Added single-site and multisite authorization regression coverage
 
 ### 1.0.4
 - Bounded historical search input, unique tokens, and serialized token storage

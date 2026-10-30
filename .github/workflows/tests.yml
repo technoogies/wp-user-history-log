@@ -82,8 +82,11 @@ jobs:
           "${{ matrix.wordpress }}"
           true
 
-      - name: Run unit and integration tests
+      - name: Run single-site tests
         run: composer test
+
+      - name: Run multisite authorization tests
+        run: composer test:multisite
 
       - name: Audit development dependencies
         run: composer audit

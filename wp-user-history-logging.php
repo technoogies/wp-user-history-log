@@ -4,7 +4,7 @@
  * Plugin Name: WP User History Log
  * Plugin URI: https://github.com/technoogies/wp-user-history-log
  * Description: Tracks changes made to user accounts (name, email, username, nicename, etc.) Adds NiceName edit field and displays a history log on the user edit page.
- * Version: 1.0.6
+ * Version: 1.0.7
  * Author: Technoogies / gpt 5.1 codex | from WPZOOM user-history
  * Author URI: https://technoogies.com
  * License: GPL v2 or later
@@ -191,10 +191,11 @@ class User_History {
             KEY field_name (field_name),
             KEY created_at (created_at),
             KEY old_value_search (field_name, old_value(100))
-        ) $charset_collate;";
+        ) ENGINE=InnoDB $charset_collate;";
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         dbDelta($sql);
+        $this->ensure_history_table_engine();
     }
 
     /**
@@ -582,6 +583,11 @@ class User_History {
         $search_tokens = $this->build_search_tokens($original_field_name, $old_value, $new_value);
         $operator_snapshot = wp_json_encode($this->get_operator_snapshot($changed_by, $context));
         $operator_details = $this->encrypt_value($operator_snapshot);
+
+        if ($this->should_force_log_change_failure($original_field_name, $sanitized_change_type, $context)) {
+            error_log('User History: Simulated log insert failure for user ' . (int) $user_id);
+            return false;
+        }
 
         $inserted = $wpdb->insert(
             $table_name,
@@ -1012,10 +1018,17 @@ class User_History {
             wp_send_json_error(['message' => __('You are not allowed to modify this user.', 'user-history')]);
         }
 
+        if (!$this->history_table_supports_transactions()) {
+            wp_send_json_error(['message' => __('History cannot be cleared because transactional storage is unavailable. No changes were saved.', 'user-history')]);
+        }
+
         global $wpdb;
         $table_name = $wpdb->prefix . self::TABLE_NAME;
 
-        $transaction_started = $this->maybe_begin_transaction();
+        $transaction_started = $this->begin_required_transaction();
+        if (!$transaction_started) {
+            wp_send_json_error(['message' => __('Clearing failed because a transaction could not be started. No changes were saved.', 'user-history')]);
+        }
 
         $deleted = $wpdb->delete(
             $table_name,
@@ -1044,7 +1057,10 @@ class User_History {
             wp_send_json_error(['message' => __('Clearing failed because the audit log could not be updated. No changes were saved.', 'user-history')]);
         }
 
-        $this->commit_transaction($transaction_started);
+        if (!$this->commit_transaction($transaction_started)) {
+            $this->rollback_transaction($transaction_started);
+            wp_send_json_error(['message' => __('Clearing failed because the transaction could not be completed. No changes were saved.', 'user-history')]);
+        }
 
         wp_send_json_success([
             'message' => __('History cleared successfully', 'user-history'),
@@ -1148,7 +1164,21 @@ class User_History {
             return $mapping;
         }
 
-        $transaction_started = $this->maybe_begin_transaction();
+        if (!$this->username_change_tables_support_transactions()) {
+            return new WP_Error(
+                'user_history_nontransactional',
+                __('Username cannot be changed because transactional storage is unavailable.', 'user-history')
+            );
+        }
+
+        $transaction_started = $this->begin_required_transaction();
+        if (!$transaction_started) {
+            return new WP_Error(
+                'user_history_transaction_begin_failed',
+                __('Username cannot be changed because a transaction could not be started.', 'user-history')
+            );
+        }
+
         $mapping_attempted = false;
         $identity_written = false;
         $audit_id = 0;
@@ -1349,7 +1379,19 @@ class User_History {
             );
         }
 
-        $this->commit_transaction($transaction_started);
+        if (!$this->commit_transaction($transaction_started)) {
+            return $this->fail_username_change(
+                'user_history_commit_failed',
+                __('Username change could not be completed because the transaction failed and was reversed.', 'user-history'),
+                $transaction_started,
+                $user_id,
+                $original_identity,
+                $mapping,
+                $mapping_attempted,
+                $identity_written,
+                $audit_id
+            );
+        }
 
         if (
             !$this->user_identity_matches($user_id, $expected_identity)
@@ -1495,6 +1537,14 @@ class User_History {
         return (bool) apply_filters('user_history_force_username_change_failure', false, $stage);
     }
 
+    private function should_force_log_change_failure($field_name, $change_type, $context) {
+        return (bool) apply_filters('user_history_force_log_change_failure', false, $field_name, $change_type, $context);
+    }
+
+    private function should_force_transaction_failure($stage) {
+        return (bool) apply_filters('user_history_force_transaction_failure', false, $stage);
+    }
+
     private function fail_username_change(
         $code,
         $message,
@@ -1506,7 +1556,9 @@ class User_History {
         $identity_written,
         $audit_id
     ) {
-        $this->rollback_transaction($transaction_started);
+        if (!$this->rollback_transaction($transaction_started) && $transaction_started) {
+            error_log('User History: ROLLBACK failed while reversing a username change for user ' . (int) $user_id);
+        }
 
         if ($audit_id && !$transaction_started) {
             $this->delete_history_row($audit_id);
@@ -1558,7 +1610,101 @@ class User_History {
         }));
     }
 
-    private function maybe_begin_transaction() {
+    /**
+     * Convert the plugin history table to InnoDB when the live engine is not transactional.
+     */
+    private function ensure_history_table_engine() {
+        global $wpdb;
+
+        $table_name = $wpdb->prefix . self::TABLE_NAME;
+        if ($this->table_uses_required_engine($table_name, false)) {
+            return true;
+        }
+
+        if (!preg_match('/^[A-Za-z0-9_]+$/', $table_name)) {
+            error_log('User History: Refusing to alter history table with unexpected name.');
+            return false;
+        }
+
+        $wpdb->query("ALTER TABLE `{$table_name}` ENGINE=InnoDB");
+
+        if (!$this->table_uses_required_engine($table_name, false)) {
+            error_log('User History: History table is not using InnoDB. Destructive actions will be refused.');
+            return false;
+        }
+
+        return true;
+    }
+
+    private function history_table_supports_transactions() {
+        global $wpdb;
+
+        $this->ensure_history_table_engine();
+
+        return $this->table_uses_required_engine($wpdb->prefix . self::TABLE_NAME);
+    }
+
+    private function username_change_tables_support_transactions() {
+        global $wpdb;
+
+        $this->ensure_history_table_engine();
+
+        return $this->table_uses_required_engine($wpdb->prefix . self::TABLE_NAME)
+            && $this->table_uses_required_engine($wpdb->users);
+    }
+
+    private function table_uses_required_engine($table_name, $apply_filter = true) {
+        return (strcasecmp($this->get_table_engine($table_name, $apply_filter), 'InnoDB') === 0);
+    }
+
+    private function get_table_engine($table_name, $apply_filter = true) {
+        global $wpdb;
+
+        $engine = '';
+
+        if (preg_match('/^[A-Za-z0-9_]+$/', (string) $table_name)) {
+            $previous_suppress = $wpdb->suppress_errors(true);
+            $create_table = $wpdb->get_row("SHOW CREATE TABLE `{$table_name}`", ARRAY_N);
+            $wpdb->suppress_errors($previous_suppress);
+
+            if (is_array($create_table) && isset($create_table[1]) && is_string($create_table[1])) {
+                if (preg_match('/\bENGINE=([A-Za-z0-9_]+)/i', $create_table[1], $matches)) {
+                    $engine = $matches[1];
+                }
+            }
+        }
+
+        if ($engine === '') {
+            $status = $wpdb->get_row(
+                $wpdb->prepare('SHOW TABLE STATUS WHERE Name = %s', $table_name)
+            );
+            if (is_object($status) && isset($status->Engine) && is_string($status->Engine)) {
+                $engine = $status->Engine;
+            }
+        }
+
+        if ($engine === '') {
+            $engine = $wpdb->get_var(
+                $wpdb->prepare(
+                    'SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s LIMIT 1',
+                    $table_name
+                )
+            );
+            $engine = is_string($engine) ? $engine : '';
+        }
+
+        if ($apply_filter) {
+            $engine = apply_filters('user_history_table_engine', $engine, $table_name);
+        }
+
+        return is_string($engine) ? $engine : '';
+    }
+
+    private function begin_required_transaction() {
+        if ($this->should_force_transaction_failure('begin')) {
+            return false;
+        }
+
         global $wpdb;
         $result = $wpdb->query('START TRANSACTION');
         return (false !== $result);
@@ -1566,18 +1712,36 @@ class User_History {
 
     private function commit_transaction($transaction_started) {
         if (!$transaction_started) {
-            return;
+            return false;
         }
+
+        if ($this->should_force_transaction_failure('commit')) {
+            return false;
+        }
+
         global $wpdb;
-        $wpdb->query('COMMIT');
+        $result = $wpdb->query('COMMIT');
+        if (false === $result) {
+            error_log('User History: COMMIT failed - ' . $wpdb->last_error);
+            return false;
+        }
+
+        return true;
     }
 
     private function rollback_transaction($transaction_started) {
         if (!$transaction_started) {
-            return;
+            return false;
         }
+
         global $wpdb;
-        $wpdb->query('ROLLBACK');
+        $result = $wpdb->query('ROLLBACK');
+        if (false === $result) {
+            error_log('User History: ROLLBACK failed - ' . $wpdb->last_error);
+            return false;
+        }
+
+        return true;
     }
 
     private function is_field_sensitive($field_name) {

@@ -36,4 +36,12 @@ final class PluginSourceSecurityTest extends TestCase
             $this->source
         );
     }
+
+    public function test_history_table_creation_requires_innodb(): void
+    {
+        $this->assertMatchesRegularExpression('/CREATE TABLE[\s\S]*ENGINE=InnoDB/', $this->source);
+        $this->assertStringContainsString('ensure_history_table_engine', $this->source);
+        $this->assertStringContainsString('begin_required_transaction', $this->source);
+        $this->assertStringNotContainsString('maybe_begin_transaction', $this->source);
+    }
 }

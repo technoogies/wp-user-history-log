@@ -41,6 +41,8 @@ On WordPress multisite, usernames belong to the shared network users table. User
 
 If the renamed account is a super administrator, the plugin prepares and verifies the `site_admins` mapping before committing identity changes. A failed mapping, user, nicename, display-name, or audit write leaves the previous username, nicename, display name, audit history, and super-administrator list unchanged.
 
+Username changes and history clearing require InnoDB (or a table that can be converted to InnoDB). Activation and upgrade create the history table as InnoDB and convert an existing nontransactional history table when possible. If transactional storage is unavailable, those destructive actions are refused and no rows are changed. The plugin does not alter WordPress core tables such as `wp_users`.
+
 ### Searching by Previous Values
 
 On the All Users page, use the search box to search for any previous email, username, or name. Users who previously had matching values will appear in the results.
@@ -55,7 +57,7 @@ WordPress still saves a profile value that exceeds 1,024 bytes. To avoid copying
 
 ### Clearing History
 
-On the user edit page, scroll down to the Account History section and click the "Clear Log" button.
+On the user edit page, scroll down to the Account History section and click the "Clear Log" button. Clearing deletes existing history and writes a maintenance event in one transaction; a failed maintenance insert or commit leaves the previous history unchanged.
 
 ## Tracked Fields
 
@@ -91,6 +93,11 @@ The history log appears at the bottom of the user edit page, showing all tracked
 Click "Change" next to the username field to reveal an inline form for changing the username.
 
 ## Changelog
+
+### 1.0.7
+- Required and verified InnoDB for the history table during activation and upgrade
+- Refused history clearing and username changes when transactional storage is unavailable
+- Checked transaction begin, commit, and rollback results before treating destructive actions as complete
 
 ### 1.0.6
 - Made username changes and the multisite super-administrator mapping verify-and-compensate on failure

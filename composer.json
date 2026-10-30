@@ -1,0 +1,22 @@
+{
+    "name": "technoogies/wp-user-history-log",
+    "description": "WordPress user history audit plugin",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "scripts": {
+        "lint": "parallel-lint --exclude vendor .",
+        "test": "phpunit",
+        "test:unit": "phpunit --testsuite unit",
+        "test:integration": "phpunit --testsuite integration"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.6.38",
+        "yoast/phpunit-polyfills": "^4.0",
+        "php-parallel-lint/php-parallel-lint": "^1.4"
+    },
+    "config": {
+        "platform": {
+            "php": "7.4.33"
+        }
+    }
+}

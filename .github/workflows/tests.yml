@@ -1,0 +1,89 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  phpunit:
+    name: PHP ${{ matrix.php }} / WordPress ${{ matrix.wordpress }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - php: "7.4"
+            wordpress: "6.0"
+          - php: "8.3"
+            wordpress: "latest"
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: wordpress_test
+          MYSQL_USER: wordpress
+          MYSQL_PASSWORD: wordpress
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --host=127.0.0.1 --user=root --password=root"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      WP_TESTS_DIR: /tmp/wordpress-tests-lib
+      WP_CORE_DIR: /tmp/wordpress
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@accd6127cb78bee3e8082180cb391013d204ef9f # 2.37.0
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: composer:v2
+          extensions: mbstring, mysqli
+
+      - name: Validate Composer metadata
+        run: composer validate --strict
+
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Check PHP and JavaScript syntax
+        run: |
+          composer lint
+          node --check assets/js/admin.js
+
+      - name: Install WordPress test environment
+        run: >-
+          bash bin/install-wp-tests.sh
+          wordpress_test
+          wordpress
+          wordpress
+          127.0.0.1:3306
+          "${{ matrix.wordpress }}"
+          true
+
+      - name: Run unit and integration tests
+        run: composer test
+
+      - name: Audit development dependencies
+        run: composer audit

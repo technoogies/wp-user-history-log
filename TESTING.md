@@ -29,7 +29,8 @@ The suite checks that:
 - failed username, mapping, nicename, or audit writes leave identity, history, and site_admins consistent;
 - simulated history-clear and username-change insert, update, and commit failures leave records unchanged;
 - a nontransactional history or users table configuration is detected and refused;
-- historical search input, unique token hashes, and serialized token storage remain within fixed budgets.
+- historical search input, unique token hashes, and serialized token storage remain within fixed budgets;
+- a historically matching user remains excluded when `exclude`, site membership, or another query restriction excludes that ID.
 
 These are regression tests for behavior that is already safe. They deliberately do not encode the known insecure behavior as “correct.”
 
@@ -37,7 +38,6 @@ These are regression tests for behavior that is already safe. They deliberately 
 
 The initial suite does not claim that the open security findings are fixed. Follow-up fixes need new tests for:
 
-- historical-search query scoping;
 - authenticated, versioned encryption and key rotation;
 - audit retention and a dedicated audit-management capability.
 

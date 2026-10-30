@@ -4,7 +4,7 @@
  * Plugin Name: WP User History Log
  * Plugin URI: https://github.com/technoogies/wp-user-history-log
  * Description: Tracks changes made to user accounts (name, email, username, nicename, etc.) Adds NiceName edit field and displays a history log on the user edit page.
- * Version: 1.0.7
+ * Version: 1.0.8
  * Author: Technoogies / gpt 5.1 codex | from WPZOOM user-history
  * Author URI: https://technoogies.com
  * License: GPL v2 or later
@@ -328,7 +328,7 @@ class User_History {
 
         $history_table = $wpdb->prefix . self::TABLE_NAME;
 
-        if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $history_table)) !== $history_table) {
+        if (!$this->history_table_exists($history_table)) {
             return;
         }
 
@@ -371,8 +371,136 @@ class User_History {
             return;
         }
 
-        $ids_list = implode(',', $allowed_ids);
-        $query->query_where .= " OR {$wpdb->users}.ID IN ($ids_list)";
+        $historical_sql = $this->prepare_user_id_in_sql($allowed_ids);
+        if ($historical_sql === '') {
+            return;
+        }
+
+        $updated_where = $this->insert_historical_ids_into_search_group($query->query_where, $historical_sql);
+        if ($updated_where === $query->query_where) {
+            return;
+        }
+
+        $query->query_where = $updated_where;
+    }
+
+    /**
+     * Keep historical matches inside the WP_User_Query search group.
+     *
+     * Appending an unparenthesized OR after the complete WHERE clause would
+     * let historical IDs bypass exclude, site membership, and other ANDs.
+     */
+    private function insert_historical_ids_into_search_group($where, $historical_sql) {
+        $where = (string) $where;
+        $historical_sql = (string) $historical_sql;
+        $needle = ' AND (';
+        $offset = 0;
+
+        while (($start = strpos($where, $needle, $offset)) !== false) {
+            $open = $start + strlen($needle) - 1;
+            $close = $this->find_matching_paren($where, $open);
+
+            if (false === $close) {
+                break;
+            }
+
+            $group = substr($where, $open, $close - $open + 1);
+            if ($this->is_user_search_group($group)) {
+                return substr($where, 0, $close) . ' OR ' . $historical_sql . substr($where, $close);
+            }
+
+            $offset = $start + 1;
+        }
+
+        return $where;
+    }
+
+    private function is_user_search_group($group) {
+        return (bool) preg_match(
+            '/\b(?:\w+\.)?(?:user_login|user_email|user_url|user_nicename|display_name)\s+LIKE\b/i',
+            (string) $group
+        ) || (bool) preg_match('/\b(?:\w+\.)?ID\s*=/i', (string) $group);
+    }
+
+    private function find_matching_paren($sql, $open_index) {
+        $sql = (string) $sql;
+        $length = strlen($sql);
+        $depth = 0;
+        $quote = '';
+        $escaped = false;
+
+        for ($index = (int) $open_index; $index < $length; $index++) {
+            $char = $sql[$index];
+
+            if ($quote !== '') {
+                if ($escaped) {
+                    $escaped = false;
+                    continue;
+                }
+
+                if ($char === '\\') {
+                    $escaped = true;
+                    continue;
+                }
+
+                if ($char === $quote) {
+                    if (($index + 1) < $length && $sql[$index + 1] === $quote) {
+                        $index++;
+                        continue;
+                    }
+                    $quote = '';
+                }
+
+                continue;
+            }
+
+            if ($char === "'" || $char === '"') {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+
+            if ($char === ')') {
+                $depth--;
+                if (0 === $depth) {
+                    return $index;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private function history_table_exists($table_name) {
+        global $wpdb;
+
+        $table_name = (string) $table_name;
+        if (!preg_match('/^[A-Za-z0-9_]+$/', $table_name)) {
+            return false;
+        }
+
+        $previous_suppress = $wpdb->suppress_errors(true);
+        $found = $wpdb->get_var("SHOW CREATE TABLE `{$table_name}`");
+        $wpdb->suppress_errors($previous_suppress);
+
+        return is_string($found) && $found !== '';
+    }
+
+    private function prepare_user_id_in_sql($user_ids) {
+        global $wpdb;
+
+        $user_ids = array_values(array_unique(array_filter(array_map('intval', (array) $user_ids))));
+        if (empty($user_ids)) {
+            return '';
+        }
+
+        $placeholders = implode(',', array_fill(0, count($user_ids), '%d'));
+
+        return $wpdb->prepare("{$wpdb->users}.ID IN ($placeholders)", $user_ids);
     }
 
     /**

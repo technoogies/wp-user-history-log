@@ -44,4 +44,10 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertStringContainsString('begin_required_transaction', $this->source);
         $this->assertStringNotContainsString('maybe_begin_transaction', $this->source);
     }
+
+    public function test_historical_search_does_not_append_an_outer_or(): void
+    {
+        $this->assertStringContainsString('insert_historical_ids_into_search_group', $this->source);
+        $this->assertStringNotContainsString('$query->query_where .= " OR', $this->source);
+    }
 }

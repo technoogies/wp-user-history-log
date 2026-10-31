@@ -30,7 +30,11 @@ The suite checks that:
 - simulated history-clear and username-change insert, update, and commit failures leave records unchanged;
 - a nontransactional history or users table configuration is detected and refused;
 - historical search input, unique token hashes, and serialized token storage remain within fixed budgets;
-- a historically matching user remains excluded when `exclude`, site membership, or another query restriction excludes that ID.
+- a historically matching user remains excluded when `exclude`, site membership, or another query restriction excludes that ID;
+- tampered history ciphertext is rejected visibly;
+- legacy CBC rows remain readable and are re-encrypted;
+- key rotation keeps previous versions readable;
+- an unknown key version fails visibly.
 
 These are regression tests for behavior that is already safe. They deliberately do not encode the known insecure behavior as “correct.”
 
@@ -38,7 +42,6 @@ These are regression tests for behavior that is already safe. They deliberately 
 
 The initial suite does not claim that the open security findings are fixed. Follow-up fixes need new tests for:
 
-- authenticated, versioned encryption and key rotation;
 - audit retention and a dedicated audit-management capability.
 
 Nontransactional engines are simulated with the `user_history_table_engine` filter so CI can refuse MyISAM-like configurations without converting WordPress core tables. The suite also does not replace browser testing, load testing, privacy review, or testing against every third-party plugin.

@@ -50,4 +50,12 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertStringContainsString('insert_historical_ids_into_search_group', $this->source);
         $this->assertStringNotContainsString('$query->query_where .= " OR', $this->source);
     }
+
+    public function test_new_history_writes_use_authenticated_encryption(): void
+    {
+        $this->assertStringContainsString('sodium_crypto_secretbox', $this->source);
+        $this->assertStringContainsString('aes-256-gcm', $this->source);
+        $this->assertStringContainsString("CRYPTO_ENVELOPE = 'uh1'", $this->source);
+        $this->assertStringContainsString('decrypt_legacy_cbc', $this->source);
+    }
 }

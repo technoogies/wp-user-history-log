@@ -4,7 +4,7 @@ Tags: user history, user log, audit log, change username, user tracking
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.0.8
+Stable tag: 1.0.9
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -52,6 +52,10 @@ On the user edit page, click the "Change" link next to the username field. Enter
 
 Because usernames are shared across the network, multisite username changes require a network super administrator with the manage_network_users capability. Single-site permissions are unchanged. Super-administrator mapping is updated only after the intended list is prepared and verified; a failed write restores the previous identity, audit history, and mapping.
 
+= How is history encrypted? =
+
+Sensitive history values use versioned authenticated encryption. New writes prefer libsodium secretbox and fall back to AES-256-GCM. Existing AES-256-CBC rows stay readable and are re-encrypted during upgrade or when viewed. Decryption failures are shown as an unavailable notice, not a blank field. Keys are derived from WordPress salts and a stored version option; an optional USER_HISTORY_ENCRYPTION_KEY constant can pin the key material in wp-config.php.
+
 = Does this plugin store passwords? =
 
 No. The plugin only logs that a password was changed, along with the date and who changed it. No password values (hashed or otherwise) are ever stored.
@@ -93,6 +97,11 @@ On the user edit page, scroll down to the Account History section and click the 
 3. Search results showing users found by previous email/username
 
 == Changelog ==
+
+= 1.0.9 =
+* Replaced unauthenticated AES-256-CBC history encryption with versioned authenticated encryption
+* Kept legacy ciphertext readable during migration and showed decryption failures instead of blank values
+* Added salt-derived key versioning and rotation without a separate key store
 
 = 1.0.8 =
 * Kept historical user-search matches inside the existing WordPress user query
@@ -140,6 +149,9 @@ On the user edit page, scroll down to the Account History section and click the 
 * Account History display on user edit page
 
 == Upgrade Notice ==
+
+= 1.0.9 =
+Stores sensitive history with authenticated encryption and migrates readable legacy rows.
 
 = 1.0.8 =
 Keeps historical user search inside existing All Users query restrictions.

@@ -4,7 +4,7 @@
  * Plugin Name: WP User History Log
  * Plugin URI: https://github.com/technoogies/wp-user-history-log
  * Description: Tracks changes made to user accounts (name, email, username, nicename, etc.) Adds NiceName edit field and displays a history log on the user edit page.
- * Version: 1.0.8
+ * Version: 1.0.9
  * Author: Technoogies / gpt 5.1 codex | from WPZOOM user-history
  * Author URI: https://technoogies.com
  * License: GPL v2 or later
@@ -78,9 +78,19 @@ class User_History {
     private $pending_role_changes = [];
 
     /**
-     * Encryption key cache
+     * Derived encryption keys keyed by version.
+     *
+     * @var array<int,string>
      */
-    private $encryption_key = '';
+    private $encryption_keys = [];
+
+    private const CRYPTO_ENVELOPE = 'uh1';
+    private const CRYPTO_OPTION_VERSION = 'user_history_key_version';
+    private const CRYPTO_OPTION_RETIRED = 'user_history_retired_key_versions';
+    private const CRYPTO_OPTION_CURRENT = 'user_history_crypto_current';
+    private const CRYPTO_DEFAULT_VERSION = 1;
+    private const CRYPTO_LEGACY_VERSION = 0;
+    private const CRYPTO_MIGRATION_BATCH = 100;
 
     /**
      * Sensitive fields list
@@ -159,6 +169,7 @@ class User_History {
      */
     public function activate() {
         $this->create_table();
+        $this->maybe_migrate_encryption();
         if ($this->limit_existing_search_tokens()) {
             update_option('user_history_version', USER_HISTORY_VERSION);
         }
@@ -243,6 +254,7 @@ class User_History {
         add_action('wp_ajax_load_more_user_history', [$this, 'ajax_load_more_history']);
         add_action('wp_ajax_user_history_change_username', [$this, 'ajax_change_username']);
         add_action('wp_ajax_clear_user_history', [$this, 'ajax_clear_history']);
+        add_action('user_history_rotate_encryption_key', [$this, 'rotate_encryption_key']);
 
         add_action('pre_user_query', [$this, 'extend_user_search']);
     }
@@ -255,10 +267,14 @@ class User_History {
 
         if (version_compare($current_version, USER_HISTORY_VERSION, '<')) {
             $this->create_table();
+            $this->maybe_migrate_encryption();
             if ($this->limit_existing_search_tokens()) {
                 update_option('user_history_version', USER_HISTORY_VERSION);
             }
+            return;
         }
+
+        $this->maybe_migrate_encryption();
     }
 
     /**
@@ -1048,6 +1064,7 @@ class User_History {
 
             $is_self = ($entry->user_id == $entry->changed_by);
 
+            $entry = $this->maybe_reencrypt_history_row($entry);
             $old_value = $this->prepare_value_for_display($entry->field_name, $entry->old_value);
             $new_value = $this->prepare_value_for_display($entry->field_name, $entry->new_value);
 
@@ -1884,9 +1901,9 @@ class User_History {
 
         $value = (string) $value;
         $value = wp_unslash($value);
-        $value = preg_replace('/\s+/u', ' ', trim($value));
+        $normalized = preg_replace('/\s+/u', ' ', trim($value));
 
-        return $value;
+        return is_string($normalized) ? $normalized : '';
     }
 
     private function normalize_for_display($value) {
@@ -1937,8 +1954,219 @@ class User_History {
             return '';
         }
 
-        $cipher = 'aes-256-cbc';
-        $iv_length = openssl_cipher_iv_length($cipher);
+        $version = $this->get_current_key_version();
+        $key = $this->get_encryption_key_for_version($version);
+        $backend = $this->preferred_crypto_backend();
+        $payload = '';
+
+        if ($backend === 'nacl') {
+            $payload = $this->encrypt_secretbox($value, $key);
+        } elseif ($backend === 'gcm') {
+            $payload = $this->encrypt_aes_gcm($value, $key);
+        }
+
+        if ($payload === '') {
+            error_log('User History: Authenticated encryption failed.');
+            return '';
+        }
+
+        return $this->format_crypto_envelope($backend, $version, $payload);
+    }
+
+    private function decrypt_value($value) {
+        $opened = $this->open_stored_ciphertext($value);
+
+        if ($opened['status'] === 'empty') {
+            return '';
+        }
+
+        if ($opened['status'] === 'ok') {
+            return $opened['plain'];
+        }
+
+        return $this->crypto_failure_placeholder($opened['status']);
+    }
+
+    /**
+     * Increment the stored key version and keep the previous version for decrypt only.
+     */
+    public function rotate_encryption_key() {
+        $this->ensure_encryption_key_version();
+
+        $current = $this->get_stored_key_version();
+        $retired = $this->get_retired_key_versions();
+        $retired[] = $current;
+        update_option(self::CRYPTO_OPTION_RETIRED, array_values(array_unique($retired)));
+        update_option(self::CRYPTO_OPTION_VERSION, $current + 1);
+        delete_option(self::CRYPTO_OPTION_CURRENT);
+        $this->encryption_keys = [];
+        $this->maybe_migrate_encryption();
+
+        return $this->get_stored_key_version();
+    }
+
+    private function maybe_migrate_encryption() {
+        $this->ensure_encryption_key_version();
+
+        $generation = $this->crypto_generation_token();
+        if (get_option(self::CRYPTO_OPTION_CURRENT, '') === $generation) {
+            return;
+        }
+
+        for ($batch = 0; $batch < 20; $batch++) {
+            $processed = $this->reencrypt_stale_history_rows(self::CRYPTO_MIGRATION_BATCH);
+            if (0 === $processed) {
+                update_option(self::CRYPTO_OPTION_CURRENT, $generation);
+                return;
+            }
+        }
+    }
+
+    private function ensure_encryption_key_version() {
+        $version = (int) get_option(self::CRYPTO_OPTION_VERSION, 0);
+        if ($version < self::CRYPTO_DEFAULT_VERSION) {
+            update_option(self::CRYPTO_OPTION_VERSION, self::CRYPTO_DEFAULT_VERSION);
+        }
+    }
+
+    private function get_stored_key_version() {
+        $version = (int) get_option(self::CRYPTO_OPTION_VERSION, self::CRYPTO_DEFAULT_VERSION);
+        return $version >= self::CRYPTO_DEFAULT_VERSION ? $version : self::CRYPTO_DEFAULT_VERSION;
+    }
+
+    private function get_current_key_version() {
+        $this->ensure_encryption_key_version();
+        return $this->get_stored_key_version();
+    }
+
+    private function get_retired_key_versions() {
+        return array_values(array_unique(array_map('intval', (array) get_option(self::CRYPTO_OPTION_RETIRED, []))));
+    }
+
+    private function known_key_versions() {
+        $known = array_merge(
+            [self::CRYPTO_LEGACY_VERSION, $this->get_stored_key_version()],
+            $this->get_retired_key_versions()
+        );
+
+        return array_values(array_unique(array_map('intval', (array) apply_filters('user_history_known_key_versions', $known))));
+    }
+
+    private function is_known_key_version($version) {
+        return in_array((int) $version, $this->known_key_versions(), true);
+    }
+
+    private function crypto_generation_token() {
+        return $this->preferred_crypto_backend() . ':' . $this->get_stored_key_version();
+    }
+
+    private function preferred_crypto_backend() {
+        $forced = apply_filters('user_history_encryption_backend', '');
+        if ($forced === 'nacl' && $this->supports_secretbox()) {
+            return 'nacl';
+        }
+        if ($forced === 'gcm' && $this->supports_aes_gcm()) {
+            return 'gcm';
+        }
+
+        if ($this->supports_secretbox()) {
+            return 'nacl';
+        }
+
+        if ($this->supports_aes_gcm()) {
+            return 'gcm';
+        }
+
+        return '';
+    }
+
+    private function supports_secretbox() {
+        return function_exists('sodium_crypto_secretbox')
+            && function_exists('sodium_crypto_secretbox_open')
+            && defined('SODIUM_CRYPTO_SECRETBOX_NONCEBYTES')
+            && defined('SODIUM_CRYPTO_SECRETBOX_KEYBYTES');
+    }
+
+    private function supports_aes_gcm() {
+        if (!function_exists('openssl_encrypt') || !function_exists('openssl_decrypt') || !function_exists('openssl_get_cipher_methods')) {
+            return false;
+        }
+
+        $methods = array_map('strtolower', openssl_get_cipher_methods());
+        return in_array('aes-256-gcm', $methods, true);
+    }
+
+    private function format_crypto_envelope($cipher, $version, $payload) {
+        return self::CRYPTO_ENVELOPE . ':' . $cipher . ':' . (int) $version . ':' . $payload;
+    }
+
+    private function open_stored_ciphertext($value) {
+        if ($value === null || $value === '') {
+            return ['status' => 'empty'];
+        }
+
+        $value = (string) $value;
+        if (strpos($value, self::CRYPTO_ENVELOPE . ':') === 0) {
+            $parts = explode(':', $value, 4);
+            if (count($parts) !== 4 || $parts[0] !== self::CRYPTO_ENVELOPE || $parts[3] === '' || !preg_match('/^\d+$/', $parts[2])) {
+                return ['status' => 'decrypt'];
+            }
+
+            $cipher = $parts[1];
+            $version = (int) $parts[2];
+            if (!$this->is_known_key_version($version)) {
+                return ['status' => 'unknown_key'];
+            }
+
+            $plain = $this->decrypt_authenticated_payload($cipher, $parts[3], $this->get_encryption_key_for_version($version));
+            if ($plain === false) {
+                return ['status' => 'decrypt'];
+            }
+
+            return [
+                'status'    => 'ok',
+                'plain'     => $plain,
+                'reencrypt' => ($version !== $this->get_current_key_version() || $cipher !== $this->preferred_crypto_backend()),
+            ];
+        }
+
+        $plain = $this->decrypt_legacy_cbc($value);
+        if ($plain === false) {
+            return ['status' => 'decrypt'];
+        }
+
+        return [
+            'status'    => 'ok',
+            'plain'     => $plain,
+            'reencrypt' => true,
+        ];
+    }
+
+    private function encrypt_secretbox($value, $key) {
+        if (!$this->supports_secretbox() || strlen($key) !== SODIUM_CRYPTO_SECRETBOX_KEYBYTES) {
+            return '';
+        }
+
+        try {
+            $nonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
+        } catch (Exception $e) {
+            error_log('User History encryption error: ' . $e->getMessage());
+            return '';
+        }
+
+        $cipher = sodium_crypto_secretbox((string) $value, $nonce, $key);
+        return base64_encode($nonce . $cipher);
+    }
+
+    private function encrypt_aes_gcm($value, $key) {
+        if (!$this->supports_aes_gcm()) {
+            return '';
+        }
+
+        $iv_length = openssl_cipher_iv_length('aes-256-gcm');
+        if (!$iv_length) {
+            return '';
+        }
 
         try {
             $iv = random_bytes($iv_length);
@@ -1947,48 +2175,203 @@ class User_History {
             return '';
         }
 
-        $key = $this->get_encryption_key();
-        $encrypted = openssl_encrypt($value, $cipher, $key, OPENSSL_RAW_DATA, $iv);
-
-        if ($encrypted === false) {
+        $tag = '';
+        $encrypted = openssl_encrypt($value, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag, '', 16);
+        if ($encrypted === false || $tag === '') {
             return '';
         }
 
-        return base64_encode($iv . $encrypted);
+        return base64_encode($iv . $tag . $encrypted);
     }
 
-    private function decrypt_value($value) {
+    private function decrypt_authenticated_payload($cipher, $payload, $key) {
+        $decoded = base64_decode($payload, true);
+        if ($decoded === false || $decoded === '') {
+            return false;
+        }
+
+        if ($cipher === 'nacl') {
+            return $this->decrypt_secretbox($decoded, $key);
+        }
+
+        if ($cipher === 'gcm') {
+            return $this->decrypt_aes_gcm($decoded, $key);
+        }
+
+        return false;
+    }
+
+    private function decrypt_secretbox($decoded, $key) {
+        if (!$this->supports_secretbox() || strlen($key) !== SODIUM_CRYPTO_SECRETBOX_KEYBYTES) {
+            return false;
+        }
+
+        $nonce_length = SODIUM_CRYPTO_SECRETBOX_NONCEBYTES;
+        if (strlen($decoded) <= $nonce_length) {
+            return false;
+        }
+
+        $nonce = substr($decoded, 0, $nonce_length);
+        $cipher = substr($decoded, $nonce_length);
+        $plain = sodium_crypto_secretbox_open($cipher, $nonce, $key);
+
+        return $plain === false ? false : $plain;
+    }
+
+    private function decrypt_aes_gcm($decoded, $key) {
+        if (!$this->supports_aes_gcm()) {
+            return false;
+        }
+
+        $iv_length = openssl_cipher_iv_length('aes-256-gcm');
+        $tag_length = 16;
+        if (!$iv_length || strlen($decoded) <= ($iv_length + $tag_length)) {
+            return false;
+        }
+
+        $iv = substr($decoded, 0, $iv_length);
+        $tag = substr($decoded, $iv_length, $tag_length);
+        $cipher = substr($decoded, $iv_length + $tag_length);
+        $plain = openssl_decrypt($cipher, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+
+        return $plain === false ? false : $plain;
+    }
+
+    private function decrypt_legacy_cbc($value) {
         $decoded = base64_decode($value, true);
-
         if ($decoded === false) {
-            return '';
+            return false;
         }
 
-        $cipher = 'aes-256-cbc';
-        $iv_length = openssl_cipher_iv_length($cipher);
-        $iv = mb_substr($decoded, 0, $iv_length, '8bit');
-        $encrypted = mb_substr($decoded, $iv_length, null, '8bit');
-
-        $key = $this->get_encryption_key();
-        $decrypted = openssl_decrypt($encrypted, $cipher, $key, OPENSSL_RAW_DATA, $iv);
-
-        if ($decrypted === false) {
-            return '';
+        $iv_length = openssl_cipher_iv_length('aes-256-cbc');
+        if (!$iv_length || strlen($decoded) <= $iv_length) {
+            return false;
         }
 
-        return $decrypted;
+        $iv = substr($decoded, 0, $iv_length);
+        $cipher = substr($decoded, $iv_length);
+        $plain = openssl_decrypt($cipher, 'aes-256-cbc', $this->get_encryption_key_for_version(self::CRYPTO_LEGACY_VERSION), OPENSSL_RAW_DATA, $iv);
+
+        return $plain === false ? false : $plain;
     }
 
-    private function get_encryption_key() {
-        if ($this->encryption_key) {
-            return $this->encryption_key;
-        }
-
+    private function get_legacy_derived_key() {
         $salt = wp_salt('auth');
         $site_key = get_site_option('siteurl', home_url('/'));
-        $this->encryption_key = hash('sha256', $salt . 'user-history' . $site_key, true);
 
-        return $this->encryption_key;
+        return hash('sha256', $salt . 'user-history' . $site_key, true);
+    }
+
+    private function get_versioned_key_material() {
+        if (defined('USER_HISTORY_ENCRYPTION_KEY') && is_string(USER_HISTORY_ENCRYPTION_KEY) && USER_HISTORY_ENCRYPTION_KEY !== '') {
+            return USER_HISTORY_ENCRYPTION_KEY;
+        }
+
+        return wp_salt('auth') . 'user-history' . get_site_option('siteurl', home_url('/'));
+    }
+
+    private function get_encryption_key_for_version($version) {
+        $version = (int) $version;
+        if (isset($this->encryption_keys[$version])) {
+            return $this->encryption_keys[$version];
+        }
+
+        if ($version === self::CRYPTO_LEGACY_VERSION) {
+            $this->encryption_keys[$version] = $this->get_legacy_derived_key();
+            return $this->encryption_keys[$version];
+        }
+
+        $this->encryption_keys[$version] = hash('sha256', $this->get_versioned_key_material() . '|k' . $version, true);
+        return $this->encryption_keys[$version];
+    }
+
+    private function crypto_failure_placeholder($reason) {
+        if ($reason === 'unknown_key') {
+            return __('[history unavailable: unknown key version]', 'user-history');
+        }
+
+        return __('[history unavailable: decryption failed]', 'user-history');
+    }
+
+    private function maybe_reencrypt_history_row($entry) {
+        if (!is_object($entry)) {
+            return $entry;
+        }
+
+        $updates = [];
+        $fields = [
+            'old_value'           => $this->is_field_sensitive(isset($entry->field_name) ? $entry->field_name : ''),
+            'new_value'           => $this->is_field_sensitive(isset($entry->field_name) ? $entry->field_name : ''),
+            'changed_by_details'  => true,
+        ];
+
+        foreach ($fields as $column => $eligible) {
+            if (!$eligible || !isset($entry->{$column}) || $entry->{$column} === '') {
+                continue;
+            }
+
+            $opened = $this->open_stored_ciphertext($entry->{$column});
+            if ($opened['status'] !== 'ok' || empty($opened['reencrypt'])) {
+                continue;
+            }
+
+            $reencrypted = $this->encrypt_value($opened['plain']);
+            if ($reencrypted === '' || $reencrypted === $entry->{$column}) {
+                continue;
+            }
+
+            $entry->{$column} = $reencrypted;
+            $updates[$column] = $reencrypted;
+        }
+
+        if (empty($updates) || empty($entry->id)) {
+            return $entry;
+        }
+
+        global $wpdb;
+        $wpdb->update(
+            $wpdb->prefix . self::TABLE_NAME,
+            $updates,
+            ['id' => (int) $entry->id],
+            array_fill(0, count($updates), '%s'),
+            ['%d']
+        );
+
+        return $entry;
+    }
+
+    private function reencrypt_stale_history_rows($limit = 100) {
+        global $wpdb;
+
+        $table_name = $wpdb->prefix . self::TABLE_NAME;
+        $version = $this->get_current_key_version();
+        $nacl_prefix = $wpdb->esc_like($this->format_crypto_envelope('nacl', $version, '')) . '%';
+        $gcm_prefix = $wpdb->esc_like($this->format_crypto_envelope('gcm', $version, '')) . '%';
+
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT id, field_name, old_value, new_value, changed_by_details
+                FROM $table_name
+                WHERE changed_by_details != ''
+                  AND changed_by_details NOT LIKE %s
+                  AND changed_by_details NOT LIKE %s
+                ORDER BY id ASC
+                LIMIT %d",
+                $nacl_prefix,
+                $gcm_prefix,
+                (int) $limit
+            )
+        );
+
+        if (empty($rows)) {
+            return 0;
+        }
+
+        foreach ($rows as $row) {
+            $this->maybe_reencrypt_history_row($row);
+        }
+
+        return count($rows);
     }
 
     private function build_search_tokens($field_name, $old_value, $new_value) {
@@ -2101,7 +2484,7 @@ class User_History {
     }
 
     private function hash_token($token) {
-        return hash('sha256', $this->get_encryption_key() . '|' . $token);
+        return hash('sha256', $this->get_legacy_derived_key() . '|' . $token);
     }
 
     private function get_operator_snapshot($user_id, $context = []) {

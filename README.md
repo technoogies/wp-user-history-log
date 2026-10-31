@@ -79,11 +79,28 @@ On the user edit page, scroll down to the Account History section and click the 
 
 ## Hooks
 
+Sensitive history values are stored with versioned authenticated encryption (libsodium `secretbox` when available, otherwise OpenSSL AES-256-GCM). Each value is prefixed with a format and key version. Legacy AES-256-CBC rows remain readable and are re-encrypted on upgrade or when displayed. A failed decryption is shown as an explicit unavailable notice instead of a blank value.
+
+The current key is derived from WordPress salts and a stored key-version option. Operators do not need a separate key store. To pin key material, add this optional constant to `wp-config.php` before activation or rotation:
+
+```php
+define('USER_HISTORY_ENCRYPTION_KEY', 'replace-with-a-long-random-secret');
+```
+
+Previous key versions are retained only for decryption. To rotate:
+
+```php
+do_action('user_history_rotate_encryption_key');
+```
+
 ### Actions
 
 ```php
 // Fires after a username has been changed
 do_action('user_history_username_changed', $user_id, $old_username, $new_username);
+
+// Increments the stored key version and keeps previous versions for decryption
+do_action('user_history_rotate_encryption_key');
 ```
 
 ## Screenshots
@@ -95,6 +112,11 @@ The history log appears at the bottom of the user edit page, showing all tracked
 Click "Change" next to the username field to reveal an inline form for changing the username.
 
 ## Changelog
+
+### 1.0.9
+- Replaced unauthenticated AES-256-CBC history encryption with versioned authenticated encryption
+- Kept legacy ciphertext readable during migration and showed decryption failures instead of blank values
+- Added salt-derived key versioning and rotation without a separate key store
 
 ### 1.0.8
 - Kept historical user-search matches inside the existing `WP_User_Query` search group

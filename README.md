@@ -47,6 +47,8 @@ Username changes and history clearing require InnoDB (or a table that can be con
 
 On the All Users page, use the search box to search for any previous email, username, or name. Users who previously had matching values will appear in the results.
 
+Historical matches are added inside the existing WordPress user-search expression. Users that the original query already excluded — for example by `exclude`, site membership, role, or another plugin AND restriction — stay excluded.
+
 Historical search indexing uses conservative resource limits:
 
 - Searchable values up to 1,024 bytes are eligible for indexing.
@@ -93,6 +95,10 @@ The history log appears at the bottom of the user edit page, showing all tracked
 Click "Change" next to the username field to reveal an inline form for changing the username.
 
 ## Changelog
+
+### 1.0.8
+- Kept historical user-search matches inside the existing `WP_User_Query` search group
+- Preserved exclude, site membership, and other query restrictions when a previous value matches
 
 ### 1.0.7
 - Required and verified InnoDB for the history table during activation and upgrade

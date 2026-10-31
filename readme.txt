@@ -4,7 +4,7 @@ Tags: user history, user log, audit log, change username, user tracking
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.0.7
+Stable tag: 1.0.8
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -58,7 +58,7 @@ No. The plugin only logs that a password was changed, along with the date and wh
 
 = Can I search for users by their old email? =
 
-Yes! On the All Users page, use the search box to search for any previous email, username, or name. Users who previously had matching values will appear in the results.
+Yes! On the All Users page, use the search box to search for any previous email, username, or name. Users who previously had matching values will appear in the results. Historical matches stay inside the original user query, so excluded users, non-members, and other query restrictions still apply.
 
 = What user fields are tracked? =
 
@@ -93,6 +93,10 @@ On the user edit page, scroll down to the Account History section and click the 
 3. Search results showing users found by previous email/username
 
 == Changelog ==
+
+= 1.0.8 =
+* Kept historical user-search matches inside the existing WordPress user query
+* Preserved exclude, site membership, and other query restrictions when a previous value matches
 
 = 1.0.7 =
 * Required and verified InnoDB for the history table during activation and upgrade
@@ -136,6 +140,9 @@ On the user edit page, scroll down to the Account History section and click the 
 * Account History display on user edit page
 
 == Upgrade Notice ==
+
+= 1.0.8 =
+Keeps historical user search inside existing All Users query restrictions.
 
 = 1.0.7 =
 Requires InnoDB for history clearing and username changes, and refuses those actions when a transaction cannot be guaranteed.

@@ -4,7 +4,7 @@
  * Plugin Name: WP User History Log
  * Plugin URI: https://github.com/technoogies/wp-user-history-log
  * Description: Tracks changes made to user accounts (name, email, username, nicename, etc.) Adds NiceName edit field and displays a history log on the user edit page.
- * Version: 1.0.9
+ * Version: 1.1.0
  * Author: Technoogies / gpt 5.1 codex | from WPZOOM user-history
  * Author URI: https://technoogies.com
  * License: GPL v2 or later
@@ -33,6 +33,7 @@ class User_History {
      * Database table name (without prefix)
      */
     const TABLE_NAME = 'user_history';
+    const CLEAR_HISTORY_CAPABILITY = 'manage_user_history';
 
     /**
      * Fields to track in wp_users table
@@ -169,6 +170,7 @@ class User_History {
      */
     public function activate() {
         $this->create_table();
+        $this->grant_history_management_capability_on_activation();
         $this->maybe_migrate_encryption();
         if ($this->limit_existing_search_tokens()) {
             update_option('user_history_version', USER_HISTORY_VERSION);
@@ -255,14 +257,21 @@ class User_History {
         add_action('wp_ajax_user_history_change_username', [$this, 'ajax_change_username']);
         add_action('wp_ajax_clear_user_history', [$this, 'ajax_clear_history']);
         add_action('user_history_rotate_encryption_key', [$this, 'rotate_encryption_key']);
+        add_action('user_history_prune_history', [$this, 'prune_expired_history']);
+        add_action('wp_initialize_site', [$this, 'grant_history_capability_for_new_site'], 10, 1);
 
         add_action('pre_user_query', [$this, 'extend_user_search']);
+        add_filter('wp_privacy_personal_data_exporters', [$this, 'register_privacy_exporter']);
+        add_filter('wp_privacy_personal_data_erasers', [$this, 'register_privacy_eraser']);
+
+        $this->maybe_schedule_retention_prune();
     }
 
     /**
      * Maybe upgrade database
      */
     private function maybe_upgrade() {
+        $this->grant_history_management_capability();
         $current_version = get_option('user_history_version', '0');
 
         if (version_compare($current_version, USER_HISTORY_VERSION, '<')) {
@@ -1012,9 +1021,11 @@ class User_History {
                                 <?php esc_html_e('Load More', 'user-history'); ?>
                             </button>
                         <?php endif; ?>
+                        <?php if ($this->current_operator_can_clear_history((int) $user->ID)): ?>
                         <button type="button" class="button user-history-clear-log" id="user-history-clear-log">
                             <?php esc_html_e('Clear Log', 'user-history'); ?>
                         </button>
+                        <?php endif; ?>
                     </div>
                 <?php endif; ?>
             </div>
@@ -1159,8 +1170,8 @@ class User_History {
 
         $user_id = isset($_POST['user_id']) ? (int) $_POST['user_id'] : 0;
 
-        if (!$user_id || !$this->user_can_manage_history($user_id)) {
-            wp_send_json_error(['message' => __('You are not allowed to modify this user.', 'user-history')]);
+        if (!$user_id || !$this->current_operator_can_clear_history($user_id)) {
+            wp_send_json_error(['message' => __('You are not allowed to clear this history.', 'user-history')]);
         }
 
         if (!$this->history_table_supports_transactions()) {
@@ -1724,6 +1735,329 @@ class User_History {
 
     private function user_can_manage_history($user_id) {
         return current_user_can('edit_user', $user_id);
+    }
+
+    private function current_operator_can_clear_history($user_id) {
+        return current_user_can(self::CLEAR_HISTORY_CAPABILITY)
+            && current_user_can('edit_users')
+            && $this->user_can_manage_history($user_id);
+    }
+
+    public function grant_history_capability_for_new_site($new_site) {
+        $site_id = is_object($new_site) && isset($new_site->id) ? (int) $new_site->id : 0;
+        if ($site_id < 1) {
+            return;
+        }
+
+        switch_to_blog($site_id);
+        $this->grant_history_management_capability();
+        restore_current_blog();
+    }
+
+    private function grant_history_management_capability_on_activation() {
+        if (is_multisite() && function_exists('get_sites')) {
+            $site_ids = get_sites(
+                [
+                    'fields'   => 'ids',
+                    'number'   => 500,
+                    'archived' => 0,
+                    'deleted'  => 0,
+                    'spam'     => 0,
+                ]
+            );
+            foreach ((array) $site_ids as $site_id) {
+                $site_id = (int) $site_id;
+                if (!$this->site_tables_are_available($site_id)) {
+                    continue;
+                }
+
+                switch_to_blog($site_id);
+                $this->grant_history_management_capability();
+                restore_current_blog();
+            }
+
+            $this->grant_history_management_capability();
+            return;
+        }
+
+        $this->grant_history_management_capability();
+    }
+
+    private function site_tables_are_available($site_id) {
+        global $wpdb;
+
+        $site_id = (int) $site_id;
+        if ($site_id < 1) {
+            return false;
+        }
+
+        return $this->history_table_exists($wpdb->get_blog_prefix($site_id) . 'options');
+    }
+
+    private function grant_history_management_capability() {
+        $role = get_role('administrator');
+        if ($role && !$role->has_cap(self::CLEAR_HISTORY_CAPABILITY)) {
+            $role->add_cap(self::CLEAR_HISTORY_CAPABILITY);
+        }
+    }
+
+    private function should_collect_operator_ip() {
+        $collect = true;
+        if (defined('USER_HISTORY_COLLECT_IP')) {
+            $collect = (bool) USER_HISTORY_COLLECT_IP;
+        }
+
+        return (bool) apply_filters('user_history_collect_ip', $collect);
+    }
+
+    private function get_retention_days() {
+        $days = (int) get_option('user_history_retention_days', 0);
+        $days = (int) apply_filters('user_history_retention_days', $days);
+
+        return max(0, $days);
+    }
+
+    private function maybe_schedule_retention_prune() {
+        $hook = 'user_history_prune_history';
+        $days = $this->get_retention_days();
+
+        if ($days < 1) {
+            $next = wp_next_scheduled($hook);
+            if ($next) {
+                wp_unschedule_event($next, $hook);
+            }
+            return;
+        }
+
+        if (!wp_next_scheduled($hook)) {
+            wp_schedule_event(time() + HOUR_IN_SECONDS, 'daily', $hook);
+        }
+    }
+
+    /**
+     * Remove history rows older than the configured retention window.
+     *
+     * Disabled unless user_history_retention_days or the matching filter is a positive integer.
+     */
+    public function prune_expired_history() {
+        $days = $this->get_retention_days();
+        if ($days < 1) {
+            return 0;
+        }
+
+        if (!$this->history_table_supports_transactions()) {
+            error_log('User History: Retention pruning skipped because transactional storage is unavailable.');
+            return 0;
+        }
+
+        $transaction_started = $this->begin_required_transaction();
+        if (!$transaction_started) {
+            error_log('User History: Retention pruning skipped because a transaction could not be started.');
+            return 0;
+        }
+
+        global $wpdb;
+        $table_name = $wpdb->prefix . self::TABLE_NAME;
+        $cutoff = date('Y-m-d H:i:s', current_time('timestamp') - ($days * DAY_IN_SECONDS));
+
+        $user_ids = $wpdb->get_col(
+            $wpdb->prepare(
+                "SELECT DISTINCT user_id FROM $table_name WHERE created_at < %s",
+                $cutoff
+            )
+        );
+
+        $removed = 0;
+        foreach (array_map('intval', (array) $user_ids) as $user_id) {
+            if ($user_id < 1) {
+                continue;
+            }
+
+            $deleted = $wpdb->query(
+                $wpdb->prepare(
+                    "DELETE FROM $table_name WHERE user_id = %d AND created_at < %s",
+                    $user_id,
+                    $cutoff
+                )
+            );
+
+            if ($deleted === false) {
+                $this->rollback_transaction($transaction_started);
+                error_log('User History: Retention pruning failed while deleting expired rows.');
+                return 0;
+            }
+
+            if ((int) $deleted < 1) {
+                continue;
+            }
+
+            $removed += (int) $deleted;
+            $logged = $this->log_change(
+                $user_id,
+                get_current_user_id(),
+                'user_history_maintenance',
+                __('History Maintenance', 'user-history'),
+                '',
+                sprintf(
+                    /* translators: %d: number of removed history rows */
+                    _n('%d expired history record removed.', '%d expired history records removed.', (int) $deleted, 'user-history'),
+                    (int) $deleted
+                ),
+                'maintenance',
+                ['action' => 'history_retention']
+            );
+
+            if (!$logged) {
+                $this->rollback_transaction($transaction_started);
+                error_log('User History: Retention pruning failed because a maintenance event could not be written.');
+                return 0;
+            }
+        }
+
+        if (!$this->commit_transaction($transaction_started)) {
+            $this->rollback_transaction($transaction_started);
+            return 0;
+        }
+
+        return $removed;
+    }
+
+    public function register_privacy_exporter($exporters) {
+        $exporters['user-history-log'] = [
+            'exporter_friendly_name' => __('Account History', 'user-history'),
+            'callback'               => [$this, 'export_personal_data'],
+        ];
+
+        return $exporters;
+    }
+
+    public function register_privacy_eraser($erasers) {
+        $erasers['user-history-log'] = [
+            'eraser_friendly_name' => __('Account History', 'user-history'),
+            'callback'             => [$this, 'erase_personal_data'],
+        ];
+
+        return $erasers;
+    }
+
+    public function export_personal_data($email_address, $page = 1) {
+        $user = get_user_by('email', $email_address);
+        if (!$user) {
+            return [
+                'data' => [],
+                'done' => true,
+            ];
+        }
+
+        $page = max(1, (int) $page);
+        $per_page = 50;
+        $history = $this->get_user_history($user->ID, $per_page, ($page - 1) * $per_page);
+        $data = [];
+
+        foreach ((array) $history as $entry) {
+            $old_value = $this->prepare_value_for_display($entry->field_name, $entry->old_value);
+            $new_value = $this->prepare_value_for_display($entry->field_name, $entry->new_value);
+            $data[] = [
+                'group_id'    => 'user-history-log',
+                'group_label' => __('Account History', 'user-history'),
+                'item_id'     => 'user-history-' . (int) $entry->id,
+                'data'        => [
+                    [
+                        'name'  => __('Field', 'user-history'),
+                        'value' => (string) $entry->field_label,
+                    ],
+                    [
+                        'name'  => __('Previous value', 'user-history'),
+                        'value' => $old_value,
+                    ],
+                    [
+                        'name'  => __('New value', 'user-history'),
+                        'value' => $new_value,
+                    ],
+                    [
+                        'name'  => __('Changed at', 'user-history'),
+                        'value' => (string) $entry->created_at,
+                    ],
+                ],
+            ];
+        }
+
+        return [
+            'data' => $data,
+            'done' => count($history) < $per_page,
+        ];
+    }
+
+    public function erase_personal_data($email_address, $page = 1) {
+        unset($page);
+
+        $user = get_user_by('email', $email_address);
+        if (!$user) {
+            return [
+                'items_removed'  => false,
+                'items_retained' => false,
+                'messages'       => [],
+                'done'           => true,
+            ];
+        }
+
+        if (!(bool) apply_filters('user_history_erase_personal_data', false, $user->ID, $email_address)) {
+            return [
+                'items_removed'  => false,
+                'items_retained' => true,
+                'messages'       => [
+                    __('Account history is retained as an audit record unless an operator explicitly allows personal-data erasure.', 'user-history'),
+                ],
+                'done'           => true,
+            ];
+        }
+
+        $removed = $this->erase_user_history_for_privacy((int) $user->ID);
+
+        return [
+            'items_removed'  => $removed > 0,
+            'items_retained' => false,
+            'messages'       => [],
+            'done'           => true,
+        ];
+    }
+
+    private function erase_user_history_for_privacy($user_id) {
+        if (!$this->history_table_supports_transactions()) {
+            return 0;
+        }
+
+        $transaction_started = $this->begin_required_transaction();
+        if (!$transaction_started) {
+            return 0;
+        }
+
+        global $wpdb;
+        $table_name = $wpdb->prefix . self::TABLE_NAME;
+        $deleted = $wpdb->delete($table_name, ['user_id' => (int) $user_id], ['%d']);
+
+        if ($deleted === false) {
+            $this->rollback_transaction($transaction_started);
+            return 0;
+        }
+
+        $logged = $this->log_change(
+            $user_id,
+            get_current_user_id(),
+            'user_history_maintenance',
+            __('History Maintenance', 'user-history'),
+            '',
+            __('History log erased through a personal-data request.', 'user-history'),
+            'maintenance',
+            ['action' => 'history_privacy_erase']
+        );
+
+        if (!$logged || !$this->commit_transaction($transaction_started)) {
+            $this->rollback_transaction($transaction_started);
+            return 0;
+        }
+
+        return (int) $deleted;
     }
 
     /**
@@ -2491,7 +2825,9 @@ class User_History {
         $snapshot = [
             'operator_id' => (int) $user_id,
             'timestamp'   => current_time('mysql'),
-            'ip'          => isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '',
+            'ip'          => $this->should_collect_operator_ip() && isset($_SERVER['REMOTE_ADDR'])
+                ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR']))
+                : '',
         ];
 
         if ($user_id) {

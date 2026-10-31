@@ -58,4 +58,26 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertStringContainsString("CRYPTO_ENVELOPE = 'uh1'", $this->source);
         $this->assertStringContainsString('decrypt_legacy_cbc', $this->source);
     }
+
+    public function test_clear_history_requires_dedicated_capability(): void
+    {
+        $this->assertStringContainsString("CLEAR_HISTORY_CAPABILITY = 'manage_user_history'", $this->source);
+        $this->assertStringContainsString('current_operator_can_clear_history', $this->source);
+        $this->assertStringContainsString('grant_history_management_capability', $this->source);
+        $this->assertStringContainsString('wp_privacy_personal_data_exporters', $this->source);
+        $this->assertStringContainsString('wp_privacy_personal_data_erasers', $this->source);
+        $this->assertStringContainsString("apply_filters('user_history_erase_personal_data', false", $this->source);
+        $this->assertStringContainsString("get_option('user_history_retention_days', 0)", $this->source);
+    }
+
+    public function test_uninstall_does_not_wipe_history_by_default(): void
+    {
+        $uninstall = file_get_contents(dirname(__DIR__, 2) . '/uninstall.php');
+
+        $this->assertNotFalse($uninstall);
+        $this->assertStringContainsString("if (!defined('WP_UNINSTALL_PLUGIN'))", $uninstall);
+        $this->assertStringContainsString('USER_HISTORY_DELETE_DATA_ON_UNINSTALL', $uninstall);
+        $this->assertStringContainsString('user_history_delete_data_on_uninstall', $uninstall);
+        $this->assertStringContainsString('if (!$delete_data)', $uninstall);
+    }
 }

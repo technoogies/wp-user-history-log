@@ -4,7 +4,7 @@ Tags: user history, user log, audit log, change username, user tracking
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.0.9
+Stable tag: 1.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -21,7 +21,8 @@ User History tracks all changes made to user profiles and displays a complete hi
 * **Change Username** - Allows admins to change usernames directly from the user edit page (WordPress normally doesn't allow this)
 * **Search by Previous Values** - Find users on the All Users page by their old email or username
 * **See Who Made Changes** - Each log entry shows whether the user changed their own profile or if an admin made the change
-* **Clear History** - Admins can clear the history log for any user
+* **Clear History** - Operators with the manage_user_history capability can clear the history log for a user
+* **Privacy Export** - WordPress personal-data export includes account history; erasure keeps the audit trail unless explicitly allowed
 * **Multisite Compatible** - Works with WordPress multisite installations
 * **Members Plugin Compatible** - Works with the Members plugin for multiple role assignments
 
@@ -88,7 +89,19 @@ Yes. The plugin correctly tracks role changes when using the Members plugin, whi
 
 = How do I clear a user's history? =
 
-On the user edit page, scroll down to the Account History section and click the "Clear Log" button. Clearing and username changes require InnoDB. If the history table is not transactional and cannot be converted, those actions are refused and no records are changed.
+On the user edit page, scroll down to the Account History section and click the "Clear Log" button. Clearing requires the dedicated manage_user_history capability in addition to edit_users. Activation and upgrade grant that capability to administrators. An account editor who can view history but does not have manage_user_history cannot clear it. Clearing and username changes require InnoDB. If the history table is not transactional and cannot be converted, those actions are refused and no records are changed.
+
+= Does this plugin automatically delete old history? =
+
+No. Retention pruning stays off unless the user_history_retention_days option or filter is set to a positive number of days. When enabled, only older rows are removed and a maintenance audit event is written.
+
+= What happens to history during a personal-data request or uninstall? =
+
+Export Personal Data includes decrypted account-history rows. The eraser keeps history as an audit record unless the user_history_erase_personal_data filter allows removal. Uninstalling the plugin does not delete history unless USER_HISTORY_DELETE_DATA_ON_UNINSTALL is defined or the user_history_delete_data_on_uninstall option is set.
+
+= Are operator IP addresses stored? =
+
+Yes, by default. To stop collecting them without changing other behavior, define USER_HISTORY_COLLECT_IP as false or return false from the user_history_collect_ip filter.
 
 == Screenshots ==
 
@@ -97,6 +110,14 @@ On the user edit page, scroll down to the Account History section and click the 
 3. Search results showing users found by previous email/username
 
 == Changelog ==
+
+= 1.1.0 =
+* Required the dedicated manage_user_history capability to clear history, granted to administrators on activation and upgrade
+* Left viewing and historical search on the existing edit_users / edit_user checks
+* Added optional retention pruning that stays off until a positive day count is configured
+* Registered WordPress personal-data export and a conservative eraser that retains history by default
+* Documented uninstall so history is kept unless the operator explicitly chooses deletion
+* Made operator IP collection optional without changing the default
 
 = 1.0.9 =
 * Replaced unauthenticated AES-256-CBC history encryption with versioned authenticated encryption
@@ -149,6 +170,9 @@ On the user edit page, scroll down to the Account History section and click the 
 * Account History display on user edit page
 
 == Upgrade Notice ==
+
+= 1.1.0 =
+Adds a dedicated clear-history capability and optional retention/privacy controls. Existing history is kept unless an operator explicitly enables pruning, erasure, or uninstall deletion.
 
 = 1.0.9 =
 Stores sensitive history with authenticated encryption and migrates readable legacy rows.

@@ -34,17 +34,19 @@ The suite checks that:
 - tampered history ciphertext is rejected visibly;
 - legacy CBC rows remain readable and are re-encrypted;
 - key rotation keeps previous versions readable;
-- an unknown key version fails visibly.
+- an unknown key version fails visibly;
+- administrators receive `manage_user_history` on activation, and account editors without that capability cannot clear history;
+- default retention does not prune records, while an enabled window removes only eligible rows and writes a maintenance event;
+- personal-data export returns decrypted history and the eraser retains records unless explicitly allowed;
+- operator IP collection stays on by default and can be disabled.
 
 These are regression tests for behavior that is already safe. They deliberately do not encode the known insecure behavior as “correct.”
 
 ## Known gaps
 
-The initial suite does not claim that the open security findings are fixed. Follow-up fixes need new tests for:
+The suite covers the shipped security controls and does not replace browser testing, load testing, a full privacy-program review, or testing against every third-party plugin. Remaining lower-risk hardening — hard-coded role slugs, the jQuery `.html` sink, debug error leakage, and version-tag cleanup — is intentionally out of scope for the current capability and retention work.
 
-- audit retention and a dedicated audit-management capability.
-
-Nontransactional engines are simulated with the `user_history_table_engine` filter so CI can refuse MyISAM-like configurations without converting WordPress core tables. The suite also does not replace browser testing, load testing, privacy review, or testing against every third-party plugin.
+Nontransactional engines are simulated with the `user_history_table_engine` filter so CI can refuse MyISAM-like configurations without converting WordPress core tables.
 
 ## Optional local execution
 

@@ -4,7 +4,7 @@ Tags: user history, user log, audit log, change username, user tracking
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.1.0
+Stable tag: 1.1.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -56,6 +56,8 @@ Because usernames are shared across the network, multisite username changes requ
 = How is history encrypted? =
 
 Sensitive history values use versioned authenticated encryption. New writes prefer libsodium secretbox and fall back to AES-256-GCM. Existing AES-256-CBC rows stay readable and are re-encrypted during upgrade or when viewed. Decryption failures are shown as an unavailable notice, not a blank field. Keys are derived from WordPress salts and a stored version option; an optional USER_HISTORY_ENCRYPTION_KEY constant can pin the key material in wp-config.php.
+
+Encryption protects stored history from casual database reading. It does not protect against a fully compromised WordPress host, because that host already has the salts or optional key used to decrypt the values.
 
 = Does this plugin store passwords? =
 
@@ -110,6 +112,12 @@ Yes, by default. To stop collecting them without changing other behavior, define
 3. Search results showing users found by previous email/username
 
 == Changelog ==
+
+= 1.1.1 =
+* Replaced hard-coded administrator role-name checks with edit_users / edit_user capability policy for nicename edits
+* Built the empty-history notice with text nodes instead of a jQuery .html() string
+* Omitted raw database and update error details from logs unless WP_DEBUG is enabled
+* Documented that history encryption does not protect a fully compromised WordPress host
 
 = 1.1.0 =
 * Required the dedicated manage_user_history capability to clear history, granted to administrators on activation and upgrade
@@ -170,6 +178,9 @@ Yes, by default. To stop collecting them without changing other behavior, define
 * Account History display on user edit page
 
 == Upgrade Notice ==
+
+= 1.1.1 =
+Uses capability checks for nicename edits and keeps raw database errors out of logs unless WP_DEBUG is on.
 
 = 1.1.0 =
 Adds a dedicated clear-history capability and optional retention/privacy controls. Existing history is kept unless an operator explicitly enables pruning, erasure, or uninstall deletion.

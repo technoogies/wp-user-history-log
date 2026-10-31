@@ -94,6 +94,8 @@ Operator IP addresses are still collected by default. To stop storing them witho
 
 Sensitive history values are stored with versioned authenticated encryption (libsodium `secretbox` when available, otherwise OpenSSL AES-256-GCM). Each value is prefixed with a format and key version. Legacy AES-256-CBC rows remain readable and are re-encrypted on upgrade or when displayed. A failed decryption is shown as an explicit unavailable notice instead of a blank value.
 
+Encryption protects stored history from casual reading of the database. It does not protect against a fully compromised WordPress host: the same process that encrypts values can also decrypt them, and key material is derived from WordPress salts or an optional `USER_HISTORY_ENCRYPTION_KEY` constant on that host.
+
 The current key is derived from WordPress salts and a stored key-version option. Operators do not need a separate key store. To pin key material, add this optional constant to `wp-config.php` before activation or rotation:
 
 ```php
@@ -158,6 +160,12 @@ The history log appears at the bottom of the user edit page, showing all tracked
 Click "Change" next to the username field to reveal an inline form for changing the username.
 
 ## Changelog
+
+### 1.1.1
+- Replaced hard-coded administrator role-name checks with `edit_users` / `edit_user` capability policy for nicename edits
+- Built the empty-history notice with text nodes instead of a jQuery `.html()` string
+- Omitted raw database and update error details from logs unless `WP_DEBUG` is enabled
+- Documented that history encryption does not protect a fully compromised WordPress host
 
 ### 1.1.0
 - Required the dedicated `manage_user_history` capability to clear history, granted to administrators on activation and upgrade

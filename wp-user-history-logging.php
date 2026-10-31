@@ -4,7 +4,7 @@
  * Plugin Name: WP User History Log
  * Plugin URI: https://github.com/technoogies/wp-user-history-log
  * Description: Tracks changes made to user accounts (name, email, username, nicename, etc.) Adds NiceName edit field and displays a history log on the user edit page.
- * Version: 1.1.0
+ * Version: 1.1.1
  * Author: Technoogies / gpt 5.1 codex | from WPZOOM user-history
  * Author URI: https://technoogies.com
  * License: GPL v2 or later
@@ -136,11 +136,6 @@ class User_History {
      * Pending sanitized nicenames keyed by user ID
      */
     private $pending_nicename_values = [];
-
-    /**
-     * Allowed administrator role slugs
-     */
-    private $admin_role_slugs = ['administrator', 'admin'];
 
     /**
      * Singleton instance
@@ -760,7 +755,10 @@ class User_History {
         );
 
         if (false === $inserted) {
-            error_log('User History: Failed to log change for user ' . (int) $user_id . ' - ' . $wpdb->last_error);
+            $this->log_internal_event(
+                'User History: Failed to log change for user ' . (int) $user_id,
+                $wpdb->last_error
+            );
             return false;
         }
 
@@ -852,7 +850,7 @@ class User_History {
 	* Nicename field rendering - now positioned in Name section after nickname
  	*/
     public function render_nicename_field($user) {
-        if (!$this->current_operator_is_admin_role() || !current_user_can('edit_user', $user->ID)) {
+        if (!$this->current_operator_can_change_nicename((int) $user->ID)) {
             return;
         }
 
@@ -869,7 +867,7 @@ class User_History {
 						   value="<?php echo esc_attr($user->user_nicename); ?>"
 						   aria-describedby="user-history-nicename-description" />
 					<p class="description" id="user-history-nicename-description">
-						<?php esc_html_e('Must be unique, URL-friendly, and can only be changed by administrators.', 'user-history'); ?>
+						<?php esc_html_e('Must be unique, URL-friendly, and can only be changed by users who can edit accounts.', 'user-history'); ?>
 					</p>
 				</td>
 			</tr>
@@ -885,13 +883,13 @@ class User_History {
             return;
         }
 
-        if (!$this->current_operator_is_admin_role() || !current_user_can('edit_user', $user->ID)) {
+        if (!$this->current_operator_can_change_nicename((int) $user->ID)) {
             $errors->add(
                 'user_nicename_permission',
                 sprintf(
                     '<strong>%s</strong>: %s',
                     esc_html__('Error', 'user-history'),
-                    esc_html__('Only administrators can change the nicename.', 'user-history')
+                    esc_html__('You do not have permission to change the nicename.', 'user-history')
                 ),
                 ['form-field' => 'user_nicename']
             );
@@ -937,7 +935,7 @@ class User_History {
             return;
         }
 
-        if (!$this->current_operator_is_admin_role() || !current_user_can('edit_user', $user_id)) {
+        if (!$this->current_operator_can_change_nicename((int) $user_id)) {
             return;
         }
 
@@ -963,7 +961,10 @@ class User_History {
         unset($this->pending_nicename_values[$user_id]);
 
         if (is_wp_error($result)) {
-            error_log('User History: Failed to update nicename for user ' . (int) $user_id . ' - ' . $result->get_error_message());
+            $this->log_internal_event(
+                'User History: Failed to update nicename for user ' . (int) $user_id,
+                $result->get_error_message()
+            );
         }
     }
 
@@ -1743,6 +1744,10 @@ class User_History {
             && $this->user_can_manage_history($user_id);
     }
 
+    private function current_operator_can_change_nicename($user_id) {
+        return current_user_can('edit_users') && $this->user_can_manage_history($user_id);
+    }
+
     public function grant_history_capability_for_new_site($new_site) {
         $site_id = is_object($new_site) && isset($new_site->id) ? (int) $new_site->id : 0;
         if ($site_id < 1) {
@@ -2201,7 +2206,7 @@ class User_History {
         global $wpdb;
         $result = $wpdb->query('COMMIT');
         if (false === $result) {
-            error_log('User History: COMMIT failed - ' . $wpdb->last_error);
+            $this->log_internal_event('User History: COMMIT failed', $wpdb->last_error);
             return false;
         }
 
@@ -2216,7 +2221,7 @@ class User_History {
         global $wpdb;
         $result = $wpdb->query('ROLLBACK');
         if (false === $result) {
-            error_log('User History: ROLLBACK failed - ' . $wpdb->last_error);
+            $this->log_internal_event('User History: ROLLBACK failed', $wpdb->last_error);
             return false;
         }
 
@@ -2484,7 +2489,7 @@ class User_History {
         try {
             $nonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
         } catch (Exception $e) {
-            error_log('User History encryption error: ' . $e->getMessage());
+            $this->log_internal_event('User History: Authenticated encryption failed.', $e->getMessage());
             return '';
         }
 
@@ -2505,7 +2510,7 @@ class User_History {
         try {
             $iv = random_bytes($iv_length);
         } catch (Exception $e) {
-            error_log('User History encryption error: ' . $e->getMessage());
+            $this->log_internal_event('User History: Authenticated encryption failed.', $e->getMessage());
             return '';
         }
 
@@ -2844,19 +2849,13 @@ class User_History {
         return array_merge($snapshot, $context);
     }
 
-    /**
-     * Determine if current operator has administrator role
-     */
-    private function current_operator_is_admin_role() {
-        $user = wp_get_current_user();
-        if (!$user || empty($user->roles)) {
-            return false;
+    private function log_internal_event($message, $detail = '') {
+        if ($detail !== '' && defined('WP_DEBUG') && WP_DEBUG) {
+            error_log($message . ' - ' . $detail);
+            return;
         }
 
-        $roles = array_map('strtolower', (array) $user->roles);
-        $allowed = array_map('strtolower', $this->admin_role_slugs);
-
-        return (bool) array_intersect($allowed, $roles);
+        error_log($message);
     }
 
     /**

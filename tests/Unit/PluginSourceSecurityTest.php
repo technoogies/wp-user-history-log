@@ -80,4 +80,54 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertStringContainsString('user_history_delete_data_on_uninstall', $uninstall);
         $this->assertStringContainsString('if (!$delete_data)', $uninstall);
     }
+
+    public function test_nicename_policy_uses_capabilities_instead_of_role_slugs(): void
+    {
+        $this->assertStringContainsString('current_operator_can_change_nicename', $this->source);
+        $this->assertStringContainsString("current_user_can('edit_users')", $this->source);
+        $this->assertStringNotContainsString('admin_role_slugs', $this->source);
+        $this->assertStringNotContainsString('current_operator_is_admin_role', $this->source);
+        $this->assertDoesNotMatchRegularExpression(
+            "/array_intersect\s*\(\s*\$allowed/",
+            $this->source
+        );
+    }
+
+    public function test_raw_error_details_are_only_logged_through_the_debug_helper(): void
+    {
+        $this->assertStringContainsString('log_internal_event', $this->source);
+        $this->assertDoesNotMatchRegularExpression(
+            '/error_log\([^;]*\$wpdb->last_error/',
+            $this->source
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            '/error_log\([^;]*get_error_message\s*\(/',
+            $this->source
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            '/error_log\([^;]*getMessage\s*\(/',
+            $this->source
+        );
+    }
+
+    public function test_plugin_header_version_matches_readme_stable_tag(): void
+    {
+        $readme = file_get_contents(dirname(__DIR__, 2) . '/readme.txt');
+
+        $this->assertNotFalse($readme);
+        $this->assertSame(1, preg_match('/^\s*\*\s*Version:\s*(.+)$/m', $this->source, $plugin));
+        $this->assertSame(1, preg_match('/^Stable tag:\s*(.+)$/m', $readme, $stable));
+        $this->assertSame(trim($plugin[1]), trim($stable[1]));
+    }
+
+    public function test_empty_history_notice_uses_text_nodes_instead_of_html_sink(): void
+    {
+        $script = file_get_contents(dirname(__DIR__, 2) . '/assets/js/admin.js');
+
+        $this->assertNotFalse($script);
+        $this->assertStringContainsString('createTextNode', $script);
+        $this->assertStringContainsString("createElement('p')", $script);
+        $this->assertStringNotContainsString('.html(', $script);
+        $this->assertStringNotContainsString('innerHTML', $script);
+    }
 }

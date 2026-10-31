@@ -257,7 +257,18 @@
             })
             .done(function (response) {
                 if (response.success) {
-                    $('#user-history-log').html('<p class="user-history-empty">' + (i18n.emptyLog || 'No changes have been recorded yet.') + '</p>');
+                    const emptyMessage = document.createElement('p');
+                    emptyMessage.className = 'user-history-empty';
+                    emptyMessage.appendChild(
+                        document.createTextNode(i18n.emptyLog || 'No changes have been recorded yet.')
+                    );
+                    const log = document.getElementById('user-history-log');
+                    if (log) {
+                        while (log.firstChild) {
+                            log.removeChild(log.firstChild);
+                        }
+                        log.appendChild(emptyMessage);
+                    }
                     $('.user-history-count').remove();
                 } else {
                     const message = response && response.data && response.data.message

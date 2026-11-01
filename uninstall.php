@@ -35,6 +35,11 @@ function user_history_uninstall_current_site() {
         $wpdb->query("DROP TABLE IF EXISTS `{$table_name}`");
     }
 
+    $activity_table = $wpdb->prefix . 'user_activity_log';
+    if (preg_match('/^[A-Za-z0-9_]+$/', $activity_table)) {
+        $wpdb->query("DROP TABLE IF EXISTS `{$activity_table}`");
+    }
+
     delete_option('user_history_version');
     delete_option('user_history_key_version');
     delete_option('user_history_retired_key_versions');
@@ -63,6 +68,8 @@ function user_history_uninstall_current_site() {
     delete_option('user_history_username_error_message');
     delete_option('user_history_username_apply_to_admins');
     delete_option('user_history_migrated_restrict_usernames');
+    delete_option('user_history_activity_log_enabled');
+    delete_option('user_history_activity_log_events');
     delete_option('user_history_delete_data_on_uninstall');
 
     if (function_exists('delete_metadata')) {

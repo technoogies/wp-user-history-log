@@ -124,7 +124,7 @@ final class SettingsAdminTest extends WP_Ajax_UnitTestCase
         $this->assertNotFalse($this->findMenuSlug($menu, 'user-history'));
         $this->assertArrayHasKey('user-history', $submenu);
         $submenu_titles = array_values(array_column($submenu['user-history'], 0));
-        $this->assertSame(['Lock Accounts', 'Dashboard Access', 'Username Restrictions', 'Settings'], $submenu_titles);
+        $this->assertSame(['Activity Log', 'Lock Accounts', 'Dashboard Access', 'Username Restrictions', 'Settings'], $submenu_titles);
 
         $editor = self::factory()->user->create(['role' => 'editor']);
         $editor_user = get_userdata($editor);

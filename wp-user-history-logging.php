@@ -4,7 +4,7 @@
  * Plugin Name: WP User History Log
  * Plugin URI: https://github.com/technoogies/wp-user-history-log
  * Description: Tracks changes made to user accounts (name, email, username, nicename, etc.) Adds NiceName edit field and displays a history log on the user edit page.
- * Version: 1.6.0
+ * Version: 1.7.0
  * Author: Technoogies / gpt 5.1 codex | from WPZOOM user-history
  * Author URI: https://technoogies.com
  * License: GPL v2 or later
@@ -172,6 +172,7 @@ class User_History {
         $this->boot_lock_feature();
         $this->boot_dashboard_access();
         $this->boot_username_restrictions();
+        $this->create_activity_table();
         if ($this->limit_existing_search_tokens()) {
             update_option('user_history_version', USER_HISTORY_VERSION);
         }
@@ -266,6 +267,7 @@ class User_History {
         $this->boot_login_tracker();
         $this->boot_dashboard_access();
         $this->boot_username_restrictions();
+        $this->boot_activity_log();
     }
 
     /**
@@ -280,6 +282,7 @@ class User_History {
 
         if (version_compare($current_version, USER_HISTORY_VERSION, '<')) {
             $this->create_table();
+            $this->create_activity_table();
             $this->maybe_migrate_encryption();
             if ($this->limit_existing_search_tokens()) {
                 update_option('user_history_version', USER_HISTORY_VERSION);
@@ -882,6 +885,7 @@ class User_History {
             $hook,
             [
                 'toplevel_page_user-history',
+                'user-history_page_user-history-activity-log',
                 'user-history_page_user-history-lock-accounts',
                 'user-history_page_user-history-dashboard-access',
                 'user-history_page_user-history-username-restrictions',
@@ -917,6 +921,7 @@ class User_History {
             'changeUsernameNonce' => wp_create_nonce('user_history_change_username'),
             'clearHistoryNonce' => wp_create_nonce('user_history_clear'),
             'clearAllLogsNonce' => wp_create_nonce('user_history_clear_all_logs'),
+            'clearActivityLogNonce' => wp_create_nonce('user_history_clear_activity_log'),
             'lockNonce' => wp_create_nonce('user_history_lock'),
             'destroySessionsNonce' => wp_create_nonce('user_history_destroy_sessions'),
             'userId'  => $user_id,
@@ -928,9 +933,11 @@ class User_History {
                 'errorGeneric'  => __('Something went wrong. Please try again.', 'user-history'),
                 'confirmClear'  => __('Are you sure you want to clear all history for this user? This cannot be undone.', 'user-history'),
                 'confirmClearAll' => __('Are you sure you want to clear all history logs? This cannot be undone.', 'user-history'),
+                'confirmClearActivity' => __('Delete ALL activity log entries? This cannot be undone.', 'user-history'),
                 'clearing'      => __('Clearing...', 'user-history'),
                 'clearLog'      => __('Clear Log', 'user-history'),
                 'clearAllLogs'  => __('Clear All Logs', 'user-history'),
+                'clearActivityLog' => __('Clear Activity Log', 'user-history'),
                 'confirmLock'   => __('Lock this account? They will be signed out immediately.', 'user-history'),
                 'confirmUnlock' => __('Unlock this account?', 'user-history'),
                 'locking'       => __('Working...', 'user-history'),
@@ -2018,6 +2025,98 @@ class User_History {
         return (int) $deleted;
     }
 
+    /**
+     * Delete every activity-log row in one transaction and write a maintenance event.
+     *
+     * Uses DELETE. Refuses to run when InnoDB / a transaction is unavailable.
+     *
+     * @return int|WP_Error Number of deleted rows, or WP_Error when nothing was changed.
+     */
+    public function clear_activity_log() {
+        if (!$this->current_operator_can_clear_all_logs()) {
+            return new WP_Error(
+                'user_history_forbidden',
+                __('You are not allowed to clear the activity log.', 'user-history')
+            );
+        }
+
+        $this->boot_activity_log();
+        $activity = User_History_Activity_Log::get_instance($this);
+        $activity->ensure_table_engine();
+
+        if (!$this->history_table_supports_transactions() || !$this->activity_table_supports_transactions()) {
+            return new WP_Error(
+                'user_history_no_transaction',
+                __('The activity log cannot be cleared because transactional storage is unavailable. No changes were saved.', 'user-history')
+            );
+        }
+
+        $transaction_started = $this->begin_required_transaction();
+        if (!$transaction_started) {
+            return new WP_Error(
+                'user_history_begin_failed',
+                __('Clearing failed because a transaction could not be started. No changes were saved.', 'user-history')
+            );
+        }
+
+        $deleted = $activity->delete_all_rows();
+        if ($deleted === false) {
+            $this->rollback_transaction($transaction_started);
+            return new WP_Error(
+                'user_history_delete_failed',
+                __('Failed to clear the activity log.', 'user-history')
+            );
+        }
+
+        $operator_id = get_current_user_id();
+        $log_success = $this->log_change(
+            $operator_id,
+            $operator_id,
+            'user_history_maintenance',
+            __('History Maintenance', 'user-history'),
+            '',
+            sprintf(
+                /* translators: %d: number of removed activity rows */
+                _n(
+                    'Activity log cleared by an operator (%d record).',
+                    'Activity log cleared by an operator (%d records).',
+                    (int) $deleted,
+                    'user-history'
+                ),
+                (int) $deleted
+            ),
+            'maintenance',
+            ['action' => 'activity_clear_all']
+        );
+
+        if (!$log_success) {
+            $this->rollback_transaction($transaction_started);
+            return new WP_Error(
+                'user_history_audit_failed',
+                __('Clearing failed because the audit log could not be updated. No changes were saved.', 'user-history')
+            );
+        }
+
+        if (!$this->commit_transaction($transaction_started)) {
+            $this->rollback_transaction($transaction_started);
+            return new WP_Error(
+                'user_history_commit_failed',
+                __('Clearing failed because the transaction could not be completed. No changes were saved.', 'user-history')
+            );
+        }
+
+        return (int) $deleted;
+    }
+
+    private function activity_table_supports_transactions() {
+        $table = User_History_Activity_Log::get_instance($this)->table_name();
+        if ($table === '') {
+            return false;
+        }
+
+        return $this->table_uses_required_engine($table);
+    }
+
     private function current_operator_can_change_nicename($user_id) {
         return current_user_can('edit_users') && $this->user_can_manage_history($user_id);
     }
@@ -2114,6 +2213,7 @@ class User_History {
         require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-login-tracker.php';
         require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-dashboard-access.php';
         require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-username-restrictions.php';
+        require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-activity-log.php';
         User_History_Settings::get_instance();
     }
 
@@ -2135,6 +2235,17 @@ class User_History {
     private function boot_username_restrictions() {
         require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-username-restrictions.php';
         User_History_Username_Restrictions::get_instance($this)->maybe_import_restrict_usernames_settings();
+    }
+
+    private function boot_activity_log() {
+        require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-settings.php';
+        require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-activity-log.php';
+        User_History_Activity_Log::get_instance($this);
+    }
+
+    private function create_activity_table() {
+        $this->boot_activity_log();
+        User_History_Activity_Log::get_instance($this)->create_table();
     }
 
     private function get_retention_days() {
@@ -2186,6 +2297,15 @@ class User_History {
         global $wpdb;
         $table_name = $wpdb->prefix . self::TABLE_NAME;
         $cutoff = date('Y-m-d H:i:s', current_time('timestamp') - ($days * DAY_IN_SECONDS));
+
+        $this->boot_activity_log();
+        $activity = User_History_Activity_Log::get_instance($this);
+        $activity_deleted = $activity->delete_expired_rows($cutoff);
+        if ($activity_deleted === false) {
+            $this->rollback_transaction($transaction_started);
+            error_log('User History: Retention pruning failed while deleting expired activity rows.');
+            return 0;
+        }
 
         $user_ids = $wpdb->get_col(
             $wpdb->prepare(
@@ -2239,6 +2359,32 @@ class User_History {
                 error_log('User History: Retention pruning failed because a maintenance event could not be written.');
                 return 0;
             }
+        }
+
+        if ((int) $activity_deleted > 0) {
+            $operator_id = get_current_user_id();
+            $logged = $this->log_change(
+                $operator_id,
+                $operator_id,
+                'user_history_maintenance',
+                __('History Maintenance', 'user-history'),
+                '',
+                sprintf(
+                    /* translators: %d: number of removed activity rows */
+                    _n('%d expired activity record removed.', '%d expired activity records removed.', (int) $activity_deleted, 'user-history'),
+                    (int) $activity_deleted
+                ),
+                'maintenance',
+                ['action' => 'activity_retention']
+            );
+
+            if (!$logged) {
+                $this->rollback_transaction($transaction_started);
+                error_log('User History: Retention pruning failed because an activity maintenance event could not be written.');
+                return 0;
+            }
+
+            $removed += (int) $activity_deleted;
         }
 
         if (!$this->commit_transaction($transaction_started)) {

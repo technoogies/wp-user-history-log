@@ -9,6 +9,7 @@
         initLoadMore();
         initChangeUsername();
         initClearHistory();
+        initClearAllLogs();
     });
 
     const i18n = userHistoryData.i18n || {};
@@ -298,6 +299,86 @@
                 $btn.removeClass('loading').prop('disabled', false).text(i18n.clearLog || 'Clear Log');
             });
         });
+    }
+
+    /**
+     * Settings: clear every history row.
+     */
+    function initClearAllLogs() {
+        const $clearBtn = $('#user-history-clear-all-logs');
+        const message = document.getElementById('user-history-clear-all-logs-message');
+
+        if (!$clearBtn.length) {
+            return;
+        }
+
+        $clearBtn.on('click', function (e) {
+            e.preventDefault();
+
+            if (!confirm(i18n.confirmClearAll || 'Are you sure you want to clear all history logs? This cannot be undone.')) {
+                return;
+            }
+
+            const $btn = $(this);
+
+            if ($btn.hasClass('loading')) {
+                return;
+            }
+
+            setClearAllMessage(message, '');
+            $btn.addClass('loading').prop('disabled', true).text(i18n.clearing || 'Clearing...');
+
+            $.ajax({
+                url: userHistoryData.ajaxUrl,
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    action: 'user_history_clear_all_logs',
+                    nonce: userHistoryData.clearAllLogsNonce
+                }
+            })
+            .done(function (response) {
+                if (response.success) {
+                    const text = response && response.data && response.data.message
+                        ? response.data.message
+                        : i18n.success || 'Success.';
+                    setClearAllMessage(message, text, true);
+                    $btn.removeClass('loading').prop('disabled', true).text(i18n.clearAllLogs || 'Clear All Logs');
+                    return;
+                }
+
+                const errorText = response && response.data && response.data.message
+                    ? response.data.message
+                    : i18n.errorGeneric || 'Something went wrong. Please try again.';
+                setClearAllMessage(message, errorText, false);
+                $btn.removeClass('loading').prop('disabled', false).text(i18n.clearAllLogs || 'Clear All Logs');
+            })
+            .fail(function () {
+                setClearAllMessage(message, i18n.errorGeneric || 'Something went wrong. Please try again.', false);
+                $btn.removeClass('loading').prop('disabled', false).text(i18n.clearAllLogs || 'Clear All Logs');
+            });
+        });
+    }
+
+    function setClearAllMessage(element, text, isSuccess) {
+        if (!element) {
+            return;
+        }
+
+        element.classList.remove('success', 'error');
+        if (isSuccess === true) {
+            element.classList.add('success');
+        } else if (isSuccess === false) {
+            element.classList.add('error');
+        }
+
+        while (element.firstChild) {
+            element.removeChild(element.firstChild);
+        }
+
+        if (text) {
+            element.appendChild(document.createTextNode(text));
+        }
     }
 
 })(jQuery);

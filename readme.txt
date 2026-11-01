@@ -4,7 +4,7 @@ Tags: user history, user log, audit log, change username, user tracking
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.1.1
+Stable tag: 1.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -22,6 +22,7 @@ User History tracks all changes made to user profiles and displays a complete hi
 * **Search by Previous Values** - Find users on the All Users page by their old email or username
 * **See Who Made Changes** - Each log entry shows whether the user changed their own profile or if an admin made the change
 * **Clear History** - Operators with the manage_user_history capability can clear the history log for a user
+* **User History Settings** - Admin menu after Users with retention, IP collection, and Clear All Logs
 * **Privacy Export** - WordPress personal-data export includes account history; erasure keeps the audit trail unless explicitly allowed
 * **Multisite Compatible** - Works with WordPress multisite installations
 * **Members Plugin Compatible** - Works with the Members plugin for multiple role assignments
@@ -37,7 +38,7 @@ User History tracks all changes made to user profiles and displays a complete hi
 
 1. Upload the `user-history` folder to the `/wp-content/plugins/` directory
 2. Activate the plugin through the 'Plugins' menu in WordPress
-3. Visit any user's edit page to see their Account History section
+3. Visit User History → Settings for retention and IP options, or any user's edit page to see their Account History section
 
 == Frequently Asked Questions ==
 
@@ -93,9 +94,13 @@ Yes. The plugin correctly tracks role changes when using the Members plugin, whi
 
 On the user edit page, scroll down to the Account History section and click the "Clear Log" button. Clearing requires the dedicated manage_user_history capability in addition to edit_users. Activation and upgrade grant that capability to administrators. An account editor who can view history but does not have manage_user_history cannot clear it. Clearing and username changes require InnoDB. If the history table is not transactional and cannot be converted, those actions are refused and no records are changed.
 
+= How do I clear all history logs? =
+
+Open User History → Settings and use Clear All Logs. This requires manage_user_history, asks for confirmation, runs in a real transaction, and writes a maintenance note. It does not truncate the table. If a transaction cannot start, nothing is changed. An account without manage_user_history cannot open the menu, and the AJAX request fails.
+
 = Does this plugin automatically delete old history? =
 
-No. Retention pruning stays off unless the user_history_retention_days option or filter is set to a positive number of days. When enabled, only older rows are removed and a maintenance audit event is written.
+No. The Settings retention field defaults to 0 (keep forever). Retention pruning stays off unless you type a positive number of days or set the user_history_retention_days option or filter. When enabled, only older rows are removed and a maintenance audit event is written. Settings does not add a second daily schedule.
 
 = What happens to history during a personal-data request or uninstall? =
 
@@ -103,7 +108,7 @@ Export Personal Data includes decrypted account-history rows. The eraser keeps h
 
 = Are operator IP addresses stored? =
 
-Yes, by default. To stop collecting them without changing other behavior, define USER_HISTORY_COLLECT_IP as false or return false from the user_history_collect_ip filter.
+Yes, by default. Uncheck Record IP addresses on User History → Settings, define USER_HISTORY_COLLECT_IP as false, or return false from the user_history_collect_ip filter. The constant wins when it is defined.
 
 == Screenshots ==
 
@@ -112,6 +117,12 @@ Yes, by default. To stop collecting them without changing other behavior, define
 3. Search results showing users found by previous email/username
 
 == Changelog ==
+
+= 1.2.0 =
+* Added a User History admin menu after Users, with Settings as the only page
+* Exposed retention (default 0 / keep forever) and IP collection (default on) on Settings
+* Added Clear All Logs behind manage_user_history, using a real transaction and a maintenance event
+* Linked Settings from the Plugins screen
 
 = 1.1.1 =
 * Replaced hard-coded administrator role-name checks with edit_users / edit_user capability policy for nicename edits
@@ -178,6 +189,9 @@ Yes, by default. To stop collecting them without changing other behavior, define
 * Account History display on user edit page
 
 == Upgrade Notice ==
+
+= 1.2.0 =
+Adds a User History Settings screen. Retention stays 0 (keep forever) and IP collection stays on until you change them.
 
 = 1.1.1 =
 Uses capability checks for nicename edits and keeps raw database errors out of logs unless WP_DEBUG is on.

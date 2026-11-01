@@ -27,6 +27,10 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertStringContainsString('wp_ajax_user_history_change_username', $this->source);
         $this->assertStringContainsString('wp_ajax_clear_user_history', $this->source);
         $this->assertStringNotContainsString('wp_ajax_nopriv_', $this->source);
+
+        $settings = $this->settingsSource();
+        $this->assertStringContainsString('wp_ajax_user_history_clear_all_logs', $settings);
+        $this->assertStringNotContainsString('wp_ajax_nopriv_', $settings);
     }
 
     public function test_plugin_has_no_outbound_http_calls(): void
@@ -68,6 +72,28 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertStringContainsString('wp_privacy_personal_data_erasers', $this->source);
         $this->assertStringContainsString("apply_filters('user_history_erase_personal_data', false", $this->source);
         $this->assertStringContainsString("get_option('user_history_retention_days', 0)", $this->source);
+        $this->assertDoesNotMatchRegularExpression(
+            "/get_option\(\s*'user_history_retention_days'\s*,\s*30/",
+            $this->source
+        );
+        $this->assertStringNotContainsString('TRUNCATE', $this->source);
+    }
+
+    public function test_settings_module_keeps_fork_defaults_and_clear_all_guards(): void
+    {
+        $settings = $this->settingsSource();
+
+        $this->assertStringContainsString("if (!defined('ABSPATH'))", $settings);
+        $this->assertMatchesRegularExpression("/'default'\s*=>\s*0/", $settings);
+        $this->assertDoesNotMatchRegularExpression(
+            "/user_history_retention_days',\s*30/",
+            $settings
+        );
+        $this->assertStringNotContainsString('TRUNCATE', $settings);
+        $this->assertStringContainsString("MENU_SLUG = 'user-history'", $settings);
+        $this->assertStringContainsString('CLEAR_HISTORY_CAPABILITY', $settings);
+        $this->assertStringContainsString('0 means keep history forever', $settings);
+        $this->assertStringContainsString("get_option('user_history_collect_ip', '1')", $settings);
     }
 
     public function test_uninstall_does_not_wipe_history_by_default(): void
@@ -144,5 +170,15 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertStringContainsString('user-nickname-wrap', $script);
         $this->assertStringContainsString('insertAfter', $script);
         $this->assertStringContainsString('.user-history-nicename-wrap:not(.user-history-nicename-placed)', $styles);
+        $this->assertStringContainsString('initClearAllLogs', $script);
+        $this->assertStringContainsString('user_history_clear_all_logs', $script);
+    }
+
+    private function settingsSource(): string
+    {
+        $settings = file_get_contents(dirname(__DIR__, 2) . '/includes/class-settings.php');
+        $this->assertNotFalse($settings);
+
+        return $settings;
     }
 }

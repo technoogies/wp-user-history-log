@@ -4,7 +4,7 @@
  * Plugin Name: WP User History Log
  * Plugin URI: https://github.com/technoogies/wp-user-history-log
  * Description: Tracks changes made to user accounts (name, email, username, nicename, etc.) Adds NiceName edit field and displays a history log on the user edit page.
- * Version: 1.1.1
+ * Version: 1.2.0
  * Author: Technoogies / gpt 5.1 codex | from WPZOOM user-history
  * Author URI: https://technoogies.com
  * License: GPL v2 or later
@@ -21,6 +21,7 @@ if (!defined('ABSPATH')) {
 
 // Plugin constants
 define('USER_HISTORY_PLUGIN_DIR', plugin_dir_path(__FILE__));
+define('USER_HISTORY_PLUGIN_FILE', __FILE__);
 define('USER_HISTORY_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('USER_HISTORY_VERSION', get_file_data(__FILE__, ['Version' => 'Version'])['Version']);
 
@@ -256,6 +257,7 @@ class User_History {
         add_filter('wp_privacy_personal_data_erasers', [$this, 'register_privacy_eraser']);
 
         $this->maybe_schedule_retention_prune();
+        $this->load_settings();
     }
 
     /**
@@ -799,7 +801,10 @@ class User_History {
     }
 
     public function enqueue_admin_assets($hook) {
-        if (!in_array($hook, ['user-edit.php', 'profile.php'], true)) {
+        $is_profile = in_array($hook, ['user-edit.php', 'profile.php'], true);
+        $is_settings = ($hook === 'toplevel_page_user-history');
+
+        if (!$is_profile && !$is_settings) {
             return;
         }
 
@@ -825,6 +830,7 @@ class User_History {
             'nonce'   => wp_create_nonce('user_history_nonce'),
             'changeUsernameNonce' => wp_create_nonce('user_history_change_username'),
             'clearHistoryNonce' => wp_create_nonce('user_history_clear'),
+            'clearAllLogsNonce' => wp_create_nonce('user_history_clear_all_logs'),
             'userId'  => $user_id,
             'i18n'    => [
                 'change'        => __('Change', 'user-history'),
@@ -832,8 +838,10 @@ class User_History {
                 'pleaseWait'    => __('Please wait...', 'user-history'),
                 'errorGeneric'  => __('Something went wrong. Please try again.', 'user-history'),
                 'confirmClear'  => __('Are you sure you want to clear all history for this user? This cannot be undone.', 'user-history'),
+                'confirmClearAll' => __('Are you sure you want to clear all history logs? This cannot be undone.', 'user-history'),
                 'clearing'      => __('Clearing...', 'user-history'),
                 'clearLog'      => __('Clear Log', 'user-history'),
+                'clearAllLogs'  => __('Clear All Logs', 'user-history'),
                 'loading'       => __('Loading...', 'user-history'),
                 'loadMore'      => __('Load More', 'user-history'),
                 'emptyLog'      => __('No changes have been recorded yet.', 'user-history'),
@@ -1740,6 +1748,99 @@ class User_History {
             && $this->user_can_manage_history($user_id);
     }
 
+    public function current_operator_can_clear_all_logs() {
+        return current_user_can(self::CLEAR_HISTORY_CAPABILITY);
+    }
+
+    /**
+     * Delete every history row in one transaction and write a site-level maintenance event.
+     *
+     * Uses DELETE. Refuses to run when InnoDB / a transaction is unavailable.
+     *
+     * @return int|WP_Error Number of deleted rows, or WP_Error when nothing was changed.
+     */
+    public function clear_all_history_logs() {
+        if (!$this->current_operator_can_clear_all_logs()) {
+            return new WP_Error(
+                'user_history_forbidden',
+                __('You are not allowed to clear all history logs.', 'user-history')
+            );
+        }
+
+        if (!$this->history_table_supports_transactions()) {
+            return new WP_Error(
+                'user_history_no_transaction',
+                __('History cannot be cleared because transactional storage is unavailable. No changes were saved.', 'user-history')
+            );
+        }
+
+        $transaction_started = $this->begin_required_transaction();
+        if (!$transaction_started) {
+            return new WP_Error(
+                'user_history_begin_failed',
+                __('Clearing failed because a transaction could not be started. No changes were saved.', 'user-history')
+            );
+        }
+
+        global $wpdb;
+        $table_name = $wpdb->prefix . self::TABLE_NAME;
+
+        if (!preg_match('/^[A-Za-z0-9_]+$/', $table_name)) {
+            $this->rollback_transaction($transaction_started);
+            return new WP_Error(
+                'user_history_invalid_table',
+                __('Clearing failed because the history table name is invalid. No changes were saved.', 'user-history')
+            );
+        }
+
+        $deleted = $wpdb->query("DELETE FROM `{$table_name}`");
+        if ($deleted === false) {
+            $this->rollback_transaction($transaction_started);
+            return new WP_Error(
+                'user_history_delete_failed',
+                __('Failed to clear history', 'user-history')
+            );
+        }
+
+        $log_success = $this->log_change(
+            0,
+            get_current_user_id(),
+            'user_history_maintenance',
+            __('History Maintenance', 'user-history'),
+            '',
+            sprintf(
+                /* translators: %d: number of removed history rows */
+                _n(
+                    'All history logs cleared by an operator (%d record).',
+                    'All history logs cleared by an operator (%d records).',
+                    (int) $deleted,
+                    'user-history'
+                ),
+                (int) $deleted
+            ),
+            'maintenance',
+            ['action' => 'history_clear_all']
+        );
+
+        if (!$log_success) {
+            $this->rollback_transaction($transaction_started);
+            return new WP_Error(
+                'user_history_audit_failed',
+                __('Clearing failed because the audit log could not be updated. No changes were saved.', 'user-history')
+            );
+        }
+
+        if (!$this->commit_transaction($transaction_started)) {
+            $this->rollback_transaction($transaction_started);
+            return new WP_Error(
+                'user_history_commit_failed',
+                __('Clearing failed because the transaction could not be completed. No changes were saved.', 'user-history')
+            );
+        }
+
+        return (int) $deleted;
+    }
+
     private function current_operator_can_change_nicename($user_id) {
         return current_user_can('edit_users') && $this->user_can_manage_history($user_id);
     }
@@ -1803,12 +1904,36 @@ class User_History {
     }
 
     private function should_collect_operator_ip() {
-        $collect = true;
         if (defined('USER_HISTORY_COLLECT_IP')) {
             $collect = (bool) USER_HISTORY_COLLECT_IP;
+        } else {
+            $collect = $this->option_flag_is_enabled(get_option('user_history_collect_ip', '1'));
         }
 
         return (bool) apply_filters('user_history_collect_ip', $collect);
+    }
+
+    /**
+     * @param mixed $value Stored option or submitted flag.
+     * @return bool
+     */
+    private function option_flag_is_enabled($value) {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_int($value) || is_float($value)) {
+            return (int) $value === 1;
+        }
+
+        $normalized = strtolower(trim((string) $value));
+
+        return in_array($normalized, ['1', 'true', 'yes', 'on'], true);
+    }
+
+    private function load_settings() {
+        require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-settings.php';
+        User_History_Settings::get_instance();
     }
 
     private function get_retention_days() {
@@ -2883,6 +3008,8 @@ class User_History {
         return empty($existing);
     }
 }
+
+require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-settings.php';
 
 // Initialize the plugin
 User_History::get_instance();

@@ -2,6 +2,11 @@
  * User History Admin Styles
  */
 
+/* Hide the nicename row until JS places it under Nickname. */
+.js .user-history-nicename-wrap:not(.user-history-nicename-placed) {
+    display: none;
+}
+
 /* Main section container */
 .user-history-section {
     margin-top: 30px;

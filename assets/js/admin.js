@@ -5,12 +5,27 @@
     'use strict';
 
     $(document).ready(function () {
+        placeNicenameField();
         initLoadMore();
         initChangeUsername();
         initClearHistory();
     });
 
     const i18n = userHistoryData.i18n || {};
+
+    /**
+     * Move the nicename row under WordPress Nickname.
+     */
+    function placeNicenameField() {
+        const $field = $('.user-history-nicename-wrap');
+        const $nickname = $('.user-nickname-wrap');
+
+        if (!$field.length || !$nickname.length) {
+            return;
+        }
+
+        $field.insertAfter($nickname).addClass('user-history-nicename-placed');
+    }
 
     /**
      * Initialize load more functionality

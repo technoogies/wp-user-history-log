@@ -234,14 +234,10 @@ class User_History {
         add_action('show_user_profile', [$this, 'display_history_section'], 99);
         add_action('edit_user_profile', [$this, 'display_delete_user_button'], 100);
         add_action('show_user_profile', [$this, 'display_delete_user_button'], 100);
-		
-	/** ( Replaced with line after these two )
-    *    add_action('show_user_profile', [$this, 'render_nicename_field'], 25); // Was 20 | Wrong place
-    *    add_action('edit_user_profile', [$this, 'render_nicename_field'], 25); // Was 20
-	**/
-		
-		add_action('personal_options', [$this, 'render_nicename_field']); // CLC Added | 2025-12-14 | Originally : add_action('personal_options', [$this, 'render_nicename_field']);
-				
+
+        // personal_options prints a table row; admin.js moves it under Nickname.
+        add_action('personal_options', [$this, 'render_nicename_field']);
+
         add_action('user_profile_update_errors', [$this, 'validate_nicename_submission'], 10, 3);
         add_action('personal_options_update', [$this, 'save_nicename_field']);
         add_action('edit_user_profile_update', [$this, 'save_nicename_field']);
@@ -846,9 +842,9 @@ class User_History {
         ]);
     }
 
-	/**
-	* Nicename field rendering - now positioned in Name section after nickname
- 	*/
+    /**
+     * Render the nicename field. Admin JS places the row under Nickname.
+     */
     public function render_nicename_field($user) {
         if (!$this->current_operator_can_change_nicename((int) $user->ID)) {
             return;

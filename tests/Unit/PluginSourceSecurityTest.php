@@ -130,4 +130,19 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertStringNotContainsString('.html(', $script);
         $this->assertStringNotContainsString('innerHTML', $script);
     }
+
+    public function test_nicename_field_is_placed_under_nickname(): void
+    {
+        $script = file_get_contents(dirname(__DIR__, 2) . '/assets/js/admin.js');
+        $styles = file_get_contents(dirname(__DIR__, 2) . '/assets/css/admin.css');
+
+        $this->assertNotFalse($script);
+        $this->assertNotFalse($styles);
+        $this->assertStringContainsString("add_action('personal_options'", $this->source);
+        $this->assertStringContainsString('user-history-nicename-wrap', $this->source);
+        $this->assertStringContainsString('placeNicenameField', $script);
+        $this->assertStringContainsString('user-nickname-wrap', $script);
+        $this->assertStringContainsString('insertAfter', $script);
+        $this->assertStringContainsString('.user-history-nicename-wrap:not(.user-history-nicename-placed)', $styles);
+    }
 }

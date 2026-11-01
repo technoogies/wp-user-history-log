@@ -80,7 +80,9 @@ final class NewUserNicenameTest extends WP_UnitTestCase
 
         $this->assertSame('jane-doe', get_userdata($first)->user_nicename);
         $this->assertSame('jane-doe-2', get_userdata($second)->user_nicename);
-        $this->assertTrue($this->plugin->is_nicename_unique(get_userdata($second)->user_nicename, $first));
+        $this->assertTrue($this->plugin->is_nicename_unique('jane-doe', $first));
+        $this->assertTrue($this->plugin->is_nicename_unique('jane-doe-2', $second));
+        $this->assertFalse($this->plugin->is_nicename_unique('jane-doe', $second));
     }
 
     public function test_existing_user_nicename_is_left_unchanged_on_profile_update(): void

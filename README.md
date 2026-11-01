@@ -17,6 +17,7 @@ A WordPress plugin that tracks changes made to user accounts and allows admins t
 - **Lock Accounts** - Lock a user to sign them out and block logins; migrate existing Lock User Account flags once
 - **Login and session monitoring** - Optional login/logout/failed-login history (off by default) and a Sessions tab with Log Out Everywhere
 - **Dashboard Access** - Optional `/wp-admin` restriction (off by default). Enabling it requires `manage_user_history` and `manage_options`
+- **Username Restrictions** - Optional registration username rules (off by default) with a Test Usernames tool
 - **Privacy Export** - WordPress personal-data export includes decrypted account history; erasure keeps the audit trail unless an operator explicitly allows removal
 - **Multisite Compatible** - Works with WordPress multisite installations
 - **Members Plugin Compatible** - Works with the Members plugin for multiple role assignments
@@ -192,7 +193,18 @@ The **Sessions** tab is always available to people who can edit that user. **Log
 
 If Remove Dashboard Access options exist (`rda_*`), they are copied once. The restriction stays off even when that plugin is still active.
 
+### Username restrictions
+
+**User History → Username Restrictions** is off until you turn it on. Rules apply to **new** registrations only. Existing accounts are never renamed and can still log in. Block exact names (`admin`) or fragments (`support` matches `mysupport`). Disallow spaces separately. Test Usernames uses the same reasons as registration.
+
+Administrators bypass the rules on **Users → Add New** and **Change Username** unless **Also apply the rules to usernames chosen by administrators** is on. The `user_history_validate_username` filter can add a custom rule. Restrict Usernames settings (`c2c_restrict_usernames`) are imported once; the switch stays off.
+
 ## Changelog
+
+### 1.6.0
+- Added optional registration username rules under User History → Username Restrictions (default off)
+- Added a Test Usernames tool and optional apply-to-admins checks for Add New and Change Username
+- Imported Restrict Usernames settings once without auto-enabling the rules
 
 ### 1.5.0
 - Added optional `/wp-admin` restriction under User History → Dashboard Access (default off)

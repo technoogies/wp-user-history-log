@@ -102,6 +102,16 @@ class User_History_Settings {
             [User_History_Dashboard_Access::get_instance(), 'render_settings_page'],
             1
         );
+
+        add_submenu_page(
+            self::MENU_SLUG,
+            __('Username Restrictions', 'user-history'),
+            __('Username Restrictions', 'user-history'),
+            $capability,
+            User_History_Username_Restrictions::MENU_SLUG,
+            [User_History_Username_Restrictions::get_instance(), 'render_settings_page'],
+            2
+        );
     }
 
     /**

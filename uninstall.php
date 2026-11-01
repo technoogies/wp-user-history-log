@@ -53,6 +53,16 @@ function user_history_uninstall_current_site() {
     delete_option('user_history_dashboard_lock_ajax');
     delete_option('user_history_dashboard_url_allowlist');
     delete_option('user_history_migrated_rda');
+    delete_option('user_history_username_restrictions_enabled');
+    delete_option('user_history_username_disallow_spaces');
+    delete_option('user_history_username_min_length');
+    delete_option('user_history_username_max_length');
+    delete_option('user_history_username_blocklist');
+    delete_option('user_history_username_partial_blocklist');
+    delete_option('user_history_username_required_partials');
+    delete_option('user_history_username_error_message');
+    delete_option('user_history_username_apply_to_admins');
+    delete_option('user_history_migrated_restrict_usernames');
     delete_option('user_history_delete_data_on_uninstall');
 
     if (function_exists('delete_metadata')) {

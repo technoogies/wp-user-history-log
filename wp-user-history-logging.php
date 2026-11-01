@@ -4,7 +4,7 @@
  * Plugin Name: WP User History Log
  * Plugin URI: https://github.com/technoogies/wp-user-history-log
  * Description: Tracks changes made to user accounts (name, email, username, nicename, etc.) Adds NiceName edit field and displays a history log on the user edit page.
- * Version: 1.5.0
+ * Version: 1.6.0
  * Author: Technoogies / gpt 5.1 codex | from WPZOOM user-history
  * Author URI: https://technoogies.com
  * License: GPL v2 or later
@@ -171,6 +171,7 @@ class User_History {
         $this->maybe_migrate_encryption();
         $this->boot_lock_feature();
         $this->boot_dashboard_access();
+        $this->boot_username_restrictions();
         if ($this->limit_existing_search_tokens()) {
             update_option('user_history_version', USER_HISTORY_VERSION);
         }
@@ -264,6 +265,7 @@ class User_History {
         $this->boot_lock_feature();
         $this->boot_login_tracker();
         $this->boot_dashboard_access();
+        $this->boot_username_restrictions();
     }
 
     /**
@@ -273,6 +275,7 @@ class User_History {
         $this->grant_history_management_capability();
         $this->boot_lock_feature();
         $this->boot_dashboard_access();
+        $this->boot_username_restrictions();
         $current_version = get_option('user_history_version', '0');
 
         if (version_compare($current_version, USER_HISTORY_VERSION, '<')) {
@@ -881,6 +884,7 @@ class User_History {
                 'toplevel_page_user-history',
                 'user-history_page_user-history-lock-accounts',
                 'user-history_page_user-history-dashboard-access',
+                'user-history_page_user-history-username-restrictions',
             ],
             true
         );
@@ -1432,6 +1436,12 @@ class User_History {
 
         if (mb_strlen($new_username, 'UTF-8') < 3 || mb_strlen($new_username, 'UTF-8') > 60) {
             $response['message'] = __('Username must be between 3 and 60 characters.', 'user-history');
+            wp_send_json($response);
+        }
+
+        $username_rule_error = User_History_Username_Restrictions::get_instance($this)->get_admin_username_error($new_username);
+        if ($username_rule_error !== null) {
+            $response['message'] = $username_rule_error;
             wp_send_json($response);
         }
 
@@ -2103,6 +2113,7 @@ class User_History {
         require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-lock.php';
         require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-login-tracker.php';
         require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-dashboard-access.php';
+        require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-username-restrictions.php';
         User_History_Settings::get_instance();
     }
 
@@ -2119,6 +2130,11 @@ class User_History {
     private function boot_dashboard_access() {
         require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-dashboard-access.php';
         User_History_Dashboard_Access::get_instance($this)->maybe_import_rda_settings();
+    }
+
+    private function boot_username_restrictions() {
+        require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-username-restrictions.php';
+        User_History_Username_Restrictions::get_instance($this)->maybe_import_restrict_usernames_settings();
     }
 
     private function get_retention_days() {
@@ -3198,6 +3214,7 @@ require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-settings.php';
 require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-lock.php';
 require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-login-tracker.php';
 require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-dashboard-access.php';
+require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-username-restrictions.php';
 
 // Initialize the plugin
 User_History::get_instance();

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# Create a GitHub Release when the plugin header Version: changed on main.
-# The tag name matches Version: exactly (for example 1.9.0, not v1.9.0).
+# Create a GitHub Release for the plugin header Version when one is missing.
+# The tag name matches Version exactly (for example 1.9.0, not v1.9.0).
 # Existing tags named 1.9.0 or v1.9.0 count as already published.
 
 set -euo pipefail
@@ -27,7 +27,7 @@ if [[ -z "${current_version}" ]]; then
 fi
 
 if [[ ! "${current_version}" =~ ^[0-9]+([.][0-9A-Za-z-]+)*$ ]]; then
-    echo "Version: ${current_version} is not a release tag" >&2
+    echo "Version ${current_version} is not a release tag" >&2
     exit 1
 fi
 
@@ -36,15 +36,12 @@ if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
     previous_version="$(extract_plugin_version "$(git show "HEAD^:${PLUGIN_FILE}")")"
 fi
 
-if [[ -n "${previous_version}" && "${previous_version}" == "${current_version}" ]]; then
-    echo "Version is unchanged (${current_version}); skipping Release."
-    exit 0
-fi
-
-if [[ -z "${previous_version}" ]]; then
-    echo "No previous commit to compare; treating ${current_version} as a first Release."
-else
+if [[ -n "${previous_version}" && "${previous_version}" != "${current_version}" ]]; then
     echo "Version bumped ${previous_version} -> ${current_version}."
+elif [[ -n "${previous_version}" ]]; then
+    echo "Version is unchanged (${current_version}); creating a Release only if one is missing."
+else
+    echo "No previous commit to compare; treating ${current_version} as a first Release."
 fi
 
 if ! command -v gh >/dev/null 2>&1; then
@@ -76,7 +73,7 @@ fi
 
 gh release create "${current_version}" \
     --title "${current_version}" \
-    --target "${GITHUB_SHA:-HEAD}" \
+    --target "${RELEASE_SHA:-${GITHUB_SHA:-HEAD}}" \
     --notes "${notes}"
 
 echo "Published GitHub Release ${current_version}."

@@ -42,7 +42,7 @@ After a GitHub Release exists, **Plugins** shows an update when that Release tag
 
 WordPress only sees an update after a **Release** exists for the new `Version:`. Merging a version bump to `main` runs the **Release** GitHub Action, which creates a tag that matches `Version:` (for example `1.9.0`) and publishes that Release.
 
-**One-time first Release:** this repo had no Releases when the updater shipped. The Action creates a Release when `Version:` on `main` is different from the previous commit. After this 1.9.0 change lands, wait a minute and open [Releases](https://github.com/technoogies/wp-user-history-log/releases). If `1.9.0` is missing, publish it once by hand:
+**One-time first Release:** this repo had no Releases when the updater shipped. The Action publishes a Release for the current `Version:` when that Release does not exist yet (a version bump on `main`, or **Actions → Release → Run workflow**). After a merge, wait a minute and open [Releases](https://github.com/technoogies/wp-user-history-log/releases). If `1.9.0` is missing, publish it once by hand:
 
 1. Open the repository on GitHub.
 2. Click **Releases** in the right column (or the tag icon).

@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -24,8 +25,8 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Create Release when Version: bumped
+      - name: "Create a Release for the current Version header"
         env:
           GH_TOKEN: ${{ github.token }}
-          GITHUB_SHA: ${{ github.sha }}
+          RELEASE_SHA: ${{ github.sha }}
         run: bash bin/create-github-release.sh

@@ -54,8 +54,14 @@ final class GitHubReleaseUpdateTest extends TestCase
         $this->assertNotFalse($plugin);
 
         $this->assertStringContainsString("branches:\n      - main", $workflow);
+        $this->assertStringContainsString('workflow_dispatch', $workflow);
         $this->assertStringContainsString('contents: write', $workflow);
         $this->assertStringContainsString('bin/create-github-release.sh', $workflow);
+        $this->assertDoesNotMatchRegularExpression(
+            '/^\s+- name:\s+[^\'"].*:/m',
+            $workflow,
+            'Unquoted step names that contain a colon make the workflow YAML invalid'
+        );
         $this->assertStringContainsString('Version:', $script);
         $this->assertStringContainsString('gh release create', $script);
         $this->assertStringContainsString('v${current_version}', $script);

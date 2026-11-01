@@ -75,7 +75,7 @@ Automatic retention pruning is off by default. The Settings field shows **0** (k
 
 ### Clear All Logs
 
-On **User History → Settings**, operators with `manage_user_history` can clear every history row on the site. The action asks for confirmation, runs in a real database transaction, deletes rows (it does not truncate the table), and writes one site-level maintenance event. If a transaction cannot start, nothing is changed.
+On **User History → Settings**, operators with `manage_user_history` can clear every history row on the site. The action asks for confirmation, runs in a real database transaction, deletes rows (it does not truncate the table), and writes a maintenance event on the operator's account history. If a transaction cannot start, nothing is changed.
 
 ### Personal Data and Uninstall
 

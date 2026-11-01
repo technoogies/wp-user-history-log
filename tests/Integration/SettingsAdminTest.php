@@ -75,7 +75,7 @@ final class SettingsAdminTest extends WP_Ajax_UnitTestCase
         $this->assertTrue($response['success']);
         $this->assertSame([], $this->historySnapshot($subject));
 
-        $maintenance = $this->historySnapshot(0);
+        $maintenance = $this->historySnapshot($administrator);
         $this->assertCount(1, $maintenance);
         $this->assertSame('user_history_maintenance', $maintenance[0]['field_name']);
         $this->assertSame('maintenance', $maintenance[0]['change_type']);

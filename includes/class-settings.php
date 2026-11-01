@@ -59,6 +59,9 @@ class User_History_Settings {
      */
     public function register_menu() {
         $capability = $this->settings_capability();
+        if (!current_user_can($capability)) {
+            return;
+        }
 
         add_menu_page(
             __('User History Settings', 'user-history'),
@@ -285,7 +288,12 @@ class User_History_Settings {
     public function ajax_clear_all_logs() {
         check_ajax_referer(self::CLEAR_ALL_NONCE, 'nonce');
 
-        $result = User_History::get_instance()->clear_all_history_logs();
+        $plugin = User_History::get_instance();
+        if (!$plugin->current_operator_can_clear_all_logs()) {
+            wp_send_json_error(['message' => __('You are not allowed to clear all history logs.', 'user-history')]);
+        }
+
+        $result = $plugin->clear_all_history_logs();
 
         if (is_wp_error($result)) {
             wp_send_json_error(['message' => $result->get_error_message()]);

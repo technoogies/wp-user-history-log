@@ -1749,11 +1749,11 @@ class User_History {
     }
 
     public function current_operator_can_clear_all_logs() {
-        return current_user_can(self::CLEAR_HISTORY_CAPABILITY);
+        return is_user_logged_in() && current_user_can(self::CLEAR_HISTORY_CAPABILITY);
     }
 
     /**
-     * Delete every history row in one transaction and write a site-level maintenance event.
+     * Delete every history row in one transaction and write a maintenance event on the operator.
      *
      * Uses DELETE. Refuses to run when InnoDB / a transaction is unavailable.
      *
@@ -1802,9 +1802,10 @@ class User_History {
             );
         }
 
+        $operator_id = get_current_user_id();
         $log_success = $this->log_change(
-            0,
-            get_current_user_id(),
+            $operator_id,
+            $operator_id,
             'user_history_maintenance',
             __('History Maintenance', 'user-history'),
             '',

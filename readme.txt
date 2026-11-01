@@ -96,7 +96,7 @@ On the user edit page, scroll down to the Account History section and click the 
 
 = How do I clear all history logs? =
 
-Open User History → Settings and use Clear All Logs. This requires manage_user_history, asks for confirmation, runs in a real transaction, and writes a maintenance note. It does not truncate the table. If a transaction cannot start, nothing is changed. An account without manage_user_history cannot open the menu, and the AJAX request fails.
+Open User History → Settings and use Clear All Logs. This requires manage_user_history, asks for confirmation, runs in a real transaction, and writes a maintenance note on the operator's account history. It does not truncate the table. If a transaction cannot start, nothing is changed. An account without manage_user_history cannot open the menu, and the AJAX request fails.
 
 = Does this plugin automatically delete old history? =
 

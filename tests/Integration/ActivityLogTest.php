@@ -228,6 +228,8 @@ final class ActivityLogTest extends WP_Ajax_UnitTestCase
     {
         delete_option(User_History_Activity_Log::OPTION_ENABLED);
         delete_option(User_History_Activity_Log::OPTION_EVENTS);
+        wp_cache_delete('alloptions', 'options');
+        wp_cache_delete(User_History_Activity_Log::OPTION_ENABLED, 'options');
         $this->activity->delete_all_rows();
     }
 

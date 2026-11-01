@@ -152,7 +152,7 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertStringContainsString('User_History_Dashboard_Access::MENU_SLUG', $settings);
         $this->assertStringContainsString('User_History_Username_Restrictions::MENU_SLUG', $settings);
         $this->assertStringContainsString('CLEAR_HISTORY_CAPABILITY', $settings);
-        $this->assertStringContainsString('0 means keep history and activity rows forever', $settings);
+        $this->assertStringContainsString('0 means keep history forever', $settings);
         $this->assertStringContainsString("get_option('user_history_collect_ip', '1')", $settings);
         $this->assertStringContainsString("get_option(User_History_Login_Tracker::OPTION_KEY, '0')", $settings);
         $this->assertDoesNotMatchRegularExpression(

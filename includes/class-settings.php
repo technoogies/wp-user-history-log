@@ -306,7 +306,7 @@ class User_History_Settings {
             value="<?php echo esc_attr((string) $days); ?>"
         />
         <p class="description">
-            <?php esc_html_e('0 means keep history and activity rows forever. Type 1 or more days to turn on daily cleanup. This plugin will not delete old rows unless you opt in.', 'user-history'); ?>
+            <?php esc_html_e('0 means keep history forever. Type 1 or more days to turn on daily cleanup. This plugin will not delete old rows unless you opt in.', 'user-history'); ?>
         </p>
         <?php if ($days > 0) : ?>
             <p class="description">

@@ -10,6 +10,7 @@
         initChangeUsername();
         initClearHistory();
         initClearAllLogs();
+        initLockToggle();
     });
 
     const i18n = userHistoryData.i18n || {};
@@ -358,6 +359,99 @@
                 $btn.removeClass('loading').prop('disabled', false).text(i18n.clearAllLogs || 'Clear All Logs');
             });
         });
+    }
+
+    function initLockToggle() {
+        const $btn = $('#user-history-toggle-lock');
+        const message = document.getElementById('user-history-lock-message');
+
+        if (!$btn.length) {
+            return;
+        }
+
+        $btn.on('click', function (e) {
+            e.preventDefault();
+
+            const $button = $(this);
+            const action = $button.data('lock-action');
+            const confirmText = action === 'unlock'
+                ? (i18n.confirmUnlock || 'Unlock this account?')
+                : (i18n.confirmLock || 'Lock this account? They will be signed out immediately.');
+
+            if (!confirm(confirmText)) {
+                return;
+            }
+
+            if ($button.hasClass('loading')) {
+                return;
+            }
+
+            setLockMessage(message, '');
+            $button.addClass('loading').prop('disabled', true).text(i18n.locking || 'Working...');
+
+            $.ajax({
+                url: userHistoryData.ajaxUrl,
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    action: 'user_history_toggle_lock',
+                    nonce: userHistoryData.lockNonce,
+                    user_id: $button.data('user-id') || userHistoryData.userId,
+                    lock_action: action
+                }
+            })
+            .done(function (response) {
+                if (response.success) {
+                    const text = response.data && response.data.message
+                        ? response.data.message
+                        : i18n.success || 'Success.';
+                    setLockMessage(message, text, true);
+                    const locked = response.data && response.data.isLocked;
+                    $button
+                        .data('lock-action', locked ? 'unlock' : 'lock')
+                        .toggleClass('user-history-lock-button', !locked)
+                        .removeClass('loading')
+                        .prop('disabled', false)
+                        .text(locked ? (i18n.unlockAccount || 'Unlock Account') : (i18n.lockAccount || 'Lock Account'));
+                    return;
+                }
+
+                const errorText = response && response.data && response.data.message
+                    ? response.data.message
+                    : i18n.errorGeneric || 'Something went wrong. Please try again.';
+                setLockMessage(message, errorText, false);
+                $button.removeClass('loading').prop('disabled', false).text(
+                    action === 'unlock' ? (i18n.unlockAccount || 'Unlock Account') : (i18n.lockAccount || 'Lock Account')
+                );
+            })
+            .fail(function () {
+                setLockMessage(message, i18n.errorGeneric || 'Something went wrong. Please try again.', false);
+                $button.removeClass('loading').prop('disabled', false).text(
+                    action === 'unlock' ? (i18n.unlockAccount || 'Unlock Account') : (i18n.lockAccount || 'Lock Account')
+                );
+            });
+        });
+    }
+
+    function setLockMessage(element, text, isSuccess) {
+        if (!element) {
+            return;
+        }
+
+        element.classList.remove('success', 'error');
+        if (isSuccess === true) {
+            element.classList.add('success');
+        } else if (isSuccess === false) {
+            element.classList.add('error');
+        }
+
+        while (element.firstChild) {
+            element.removeChild(element.firstChild);
+        }
+
+        if (text) {
+            element.appendChild(document.createTextNode(text));
+        }
     }
 
     function setClearAllMessage(element, text, isSuccess) {

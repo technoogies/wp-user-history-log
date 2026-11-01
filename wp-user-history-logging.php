@@ -4,7 +4,7 @@
  * Plugin Name: WP User History Log
  * Plugin URI: https://github.com/technoogies/wp-user-history-log
  * Description: Tracks changes made to user accounts (name, email, username, nicename, etc.) Adds NiceName edit field and displays a history log on the user edit page.
- * Version: 1.3.0
+ * Version: 1.4.0
  * Author: Technoogies / gpt 5.1 codex | from WPZOOM user-history
  * Author URI: https://technoogies.com
  * License: GPL v2 or later
@@ -107,6 +107,7 @@ class User_History {
         'user_url',
         'description',
         'user_nicename',
+        'user_session',
     ];
 
     /**
@@ -260,6 +261,7 @@ class User_History {
         $this->maybe_schedule_retention_prune();
         $this->load_settings();
         $this->boot_lock_feature();
+        $this->boot_login_tracker();
     }
 
     /**
@@ -775,15 +777,16 @@ class User_History {
         return $this->log_change($user_id, $changed_by, $field_name, $field_label, $old_value, $new_value, $change_type, $context);
     }
 
-    public function get_user_history($user_id, $limit = 50, $offset = 0) {
+    public function get_user_history($user_id, $limit = 50, $offset = 0, $type = 'all') {
         global $wpdb;
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
+        $type_sql = $this->history_type_sql($type);
 
         $results = $wpdb->get_results(
             $wpdb->prepare(
                 "SELECT * FROM $table_name
-                WHERE user_id = %d
+                WHERE user_id = %d{$type_sql}
                 ORDER BY created_at DESC
                 LIMIT %d OFFSET %d",
                 $user_id,
@@ -795,7 +798,7 @@ class User_History {
         return $results;
     }
 
-    public function get_user_history_count($user_id) {
+    public function get_user_history_count($user_id, $type = 'all') {
         if (!$this->user_can_manage_history($user_id)) {
             return 0;
         }
@@ -803,13 +806,68 @@ class User_History {
         global $wpdb;
 
         $table_name = $wpdb->prefix . self::TABLE_NAME;
+        $type_sql = $this->history_type_sql($type);
 
         return (int) $wpdb->get_var(
             $wpdb->prepare(
-                "SELECT COUNT(*) FROM $table_name WHERE user_id = %d",
+                "SELECT COUNT(*) FROM $table_name WHERE user_id = %d{$type_sql}",
                 $user_id
             )
         );
+    }
+
+    /**
+     * Restrict history queries to profile changes or login events.
+     *
+     * @param string $type changes|logins|all
+     * @return string SQL fragment with no user input.
+     */
+    private function history_type_sql($type) {
+        $type = sanitize_key($type);
+        if ($type === 'logins') {
+            return " AND change_type IN ('login','logout','login_failed')";
+        }
+
+        if ($type === 'changes') {
+            return " AND change_type NOT IN ('login','logout','login_failed')";
+        }
+
+        return '';
+    }
+
+    /**
+     * @param object $entry History row.
+     * @param string $which old or new.
+     * @return string
+     */
+    public function get_history_row_display_value($entry, $which = 'new') {
+        if (!is_object($entry)) {
+            return '';
+        }
+
+        $raw = ($which === 'old') ? $entry->old_value : $entry->new_value;
+
+        return $this->prepare_value_for_display($entry->field_name, $raw);
+    }
+
+    /**
+     * IP from the encrypted operator snapshot. Empty when collection is off.
+     *
+     * @param object $entry History row.
+     * @return string
+     */
+    public function get_history_row_ip($entry) {
+        if (!is_object($entry) || empty($entry->changed_by_details)) {
+            return '';
+        }
+
+        $decoded = $this->decrypt_value($entry->changed_by_details);
+        $snapshot = json_decode($decoded, true);
+        if (!is_array($snapshot) || empty($snapshot['ip'])) {
+            return '';
+        }
+
+        return (string) $snapshot['ip'];
     }
 
     public function enqueue_admin_assets($hook) {
@@ -845,7 +903,9 @@ class User_History {
             'clearHistoryNonce' => wp_create_nonce('user_history_clear'),
             'clearAllLogsNonce' => wp_create_nonce('user_history_clear_all_logs'),
             'lockNonce' => wp_create_nonce('user_history_lock'),
+            'destroySessionsNonce' => wp_create_nonce('user_history_destroy_sessions'),
             'userId'  => $user_id,
+            'currentUserId' => get_current_user_id(),
             'i18n'    => [
                 'change'        => __('Change', 'user-history'),
                 'cancel'        => __('Cancel', 'user-history'),
@@ -861,6 +921,12 @@ class User_History {
                 'locking'       => __('Working...', 'user-history'),
                 'lockAccount'   => __('Lock Account', 'user-history'),
                 'unlockAccount' => __('Unlock Account', 'user-history'),
+                'confirmDestroySessions' => __('Log this user out of all sessions?', 'user-history'),
+                'confirmDestroyOwnSessions' => __('This will sign you out of this site as well. Continue?', 'user-history'),
+                'destroyingSessions' => __('Working...', 'user-history'),
+                'logOutEverywhere' => __('Log Out Everywhere', 'user-history'),
+                'emptyLogins'   => __('No login events have been recorded yet.', 'user-history'),
+                'noSessions'    => __('No active sessions.', 'user-history'),
                 'loading'       => __('Loading...', 'user-history'),
                 'loadMore'      => __('Load More', 'user-history'),
                 'emptyLog'      => __('No changes have been recorded yet.', 'user-history'),
@@ -999,59 +1065,123 @@ class User_History {
             return;
         }
 
-        $history = $this->filter_history_results($this->get_user_history($user->ID, 20));
-        $total_count = $this->get_user_history_count($user->ID);
+        $tracker = User_History_Login_Tracker::get_instance($this);
+        $history = $this->filter_history_results($this->get_user_history($user->ID, 20, 0, 'changes'));
+        $total_count = $this->get_user_history_count($user->ID, 'changes');
+        $logins = $this->filter_history_results($this->get_user_history($user->ID, 20, 0, 'logins'));
+        $logins_count = $this->get_user_history_count($user->ID, 'logins');
+        $sessions = class_exists('WP_Session_Tokens')
+            ? WP_Session_Tokens::get_instance((int) $user->ID)->get_all()
+            : [];
+        $can_clear = $this->current_operator_can_clear_history((int) $user->ID) && ($total_count + $logins_count) > 0;
         ?>
         <div class="user-history-section">
             <h2><?php esc_html_e('Account History', 'user-history'); ?></h2>
-            <p class="description">
-                <?php esc_html_e('A log of changes made to this account.', 'user-history'); ?>
-                <?php if ($total_count > 0): ?>
-                    <span class="user-history-count">
-                        <?php printf(
-                            esc_html(_n('%d change recorded', '%d changes recorded', $total_count, 'user-history')),
-                            (int) $total_count
-                        ); ?>
-                    </span>
-                <?php endif; ?>
-            </p>
+            <nav class="nav-tab-wrapper user-history-tabs" role="tablist">
+                <a href="#user-history-tab-changes" class="nav-tab nav-tab-active" role="tab" aria-selected="true">
+                    <?php esc_html_e('Changes', 'user-history'); ?>
+                    <?php if ($total_count > 0) : ?>
+                        <span class="user-history-count"><?php echo esc_html((string) (int) $total_count); ?></span>
+                    <?php endif; ?>
+                </a>
+                <a href="#user-history-tab-logins" class="nav-tab" role="tab" aria-selected="false">
+                    <?php esc_html_e('Logins', 'user-history'); ?>
+                    <?php if ($logins_count > 0) : ?>
+                        <span class="user-history-count"><?php echo esc_html((string) (int) $logins_count); ?></span>
+                    <?php endif; ?>
+                </a>
+                <a href="#user-history-tab-sessions" class="nav-tab" role="tab" aria-selected="false">
+                    <?php esc_html_e('Sessions', 'user-history'); ?>
+                    <?php if (!empty($sessions)) : ?>
+                        <span class="user-history-count"><?php echo esc_html((string) count($sessions)); ?></span>
+                    <?php endif; ?>
+                </a>
+            </nav>
 
             <div class="user-history-log" id="user-history-log" data-user-id="<?php echo esc_attr($user->ID); ?>">
-                <?php if (empty($history)): ?>
-                    <p class="user-history-empty">
-                        <?php esc_html_e('No changes have been recorded yet.', 'user-history'); ?>
+                <div id="user-history-tab-changes" class="user-history-tab-panel" role="tabpanel">
+                    <p class="description">
+                        <?php esc_html_e('A log of changes made to this account.', 'user-history'); ?>
                     </p>
-                <?php else: ?>
-                    <table class="widefat user-history-table">
-                        <thead>
-                            <tr>
-                                <th class="column-date"><?php esc_html_e('Date', 'user-history'); ?></th>
-                                <th class="column-field"><?php esc_html_e('Field', 'user-history'); ?></th>
-                                <th class="column-change"><?php esc_html_e('Change', 'user-history'); ?></th>
-                                <th class="column-by"><?php esc_html_e('Changed By', 'user-history'); ?></th>
-                            </tr>
-                        </thead>
-                        <tbody id="user-history-tbody">
-                            <?php
-                            echo $this->render_history_rows($history); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-                            ?>
-                        </tbody>
-                    </table>
-
+                    <?php if (empty($history)) : ?>
+                        <p class="user-history-empty user-history-changes-empty">
+                            <?php esc_html_e('No changes have been recorded yet.', 'user-history'); ?>
+                        </p>
+                    <?php else : ?>
+                        <table class="widefat user-history-table">
+                            <thead>
+                                <tr>
+                                    <th class="column-date"><?php esc_html_e('Date', 'user-history'); ?></th>
+                                    <th class="column-field"><?php esc_html_e('Field', 'user-history'); ?></th>
+                                    <th class="column-change"><?php esc_html_e('Change', 'user-history'); ?></th>
+                                    <th class="column-by"><?php esc_html_e('Changed By', 'user-history'); ?></th>
+                                </tr>
+                            </thead>
+                            <tbody id="user-history-tbody">
+                                <?php
+                                echo $this->render_history_rows($history); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                                ?>
+                            </tbody>
+                        </table>
+                    <?php endif; ?>
                     <div class="user-history-actions">
-                        <?php if ($total_count > 20): ?>
-                            <button type="button" class="button" id="user-history-load-more"
-                                    data-offset="20" data-total="<?php echo esc_attr($total_count); ?>">
+                        <?php if ($total_count > 20) : ?>
+                            <button type="button" class="button user-history-load-more" id="user-history-load-more"
+                                    data-offset="20" data-total="<?php echo esc_attr((string) $total_count); ?>"
+                                    data-history-type="changes" data-target="user-history-tbody">
                                 <?php esc_html_e('Load More', 'user-history'); ?>
                             </button>
                         <?php endif; ?>
-                        <?php if ($this->current_operator_can_clear_history((int) $user->ID)): ?>
-                        <button type="button" class="button user-history-clear-log" id="user-history-clear-log">
-                            <?php esc_html_e('Clear Log', 'user-history'); ?>
-                        </button>
+                        <?php if ($can_clear) : ?>
+                            <button type="button" class="button user-history-clear-log" id="user-history-clear-log">
+                                <?php esc_html_e('Clear Log', 'user-history'); ?>
+                            </button>
                         <?php endif; ?>
                     </div>
-                <?php endif; ?>
+                </div>
+
+                <div id="user-history-tab-logins" class="user-history-tab-panel" role="tabpanel" hidden>
+                    <?php if (!$tracker->is_enabled()) : ?>
+                        <p class="user-history-empty">
+                            <?php esc_html_e('Login recording is off. Turn it on under User History → Settings.', 'user-history'); ?>
+                        </p>
+                    <?php elseif (empty($logins)) : ?>
+                        <p class="user-history-empty user-history-logins-empty">
+                            <?php esc_html_e('No login events have been recorded yet.', 'user-history'); ?>
+                        </p>
+                    <?php else : ?>
+                        <table class="widefat user-history-table">
+                            <thead>
+                                <tr>
+                                    <th class="column-date"><?php esc_html_e('Date', 'user-history'); ?></th>
+                                    <th class="column-event"><?php esc_html_e('Event', 'user-history'); ?></th>
+                                    <th class="column-ip"><?php esc_html_e('IP Address', 'user-history'); ?></th>
+                                    <th class="column-browser"><?php esc_html_e('Browser', 'user-history'); ?></th>
+                                </tr>
+                            </thead>
+                            <tbody id="user-history-logins-tbody">
+                                <?php
+                                echo $tracker->render_login_rows($logins); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                                ?>
+                            </tbody>
+                        </table>
+                    <?php endif; ?>
+                    <?php if ($tracker->is_enabled() && $logins_count > 20) : ?>
+                        <p class="user-history-actions">
+                            <button type="button" class="button user-history-load-more"
+                                    data-offset="20" data-total="<?php echo esc_attr((string) $logins_count); ?>"
+                                    data-history-type="logins" data-target="user-history-logins-tbody">
+                                <?php esc_html_e('Load More', 'user-history'); ?>
+                            </button>
+                        </p>
+                    <?php endif; ?>
+                </div>
+
+                <div id="user-history-tab-sessions" class="user-history-tab-panel" role="tabpanel" hidden>
+                    <?php
+                    echo $tracker->render_sessions_tab($user, $sessions); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                    ?>
+                </div>
             </div>
         </div>
         <?php
@@ -1163,19 +1293,25 @@ class User_History {
 
         $user_id = isset($_POST['user_id']) ? (int) $_POST['user_id'] : 0;
         $offset = isset($_POST['offset']) ? (int) $_POST['offset'] : 0;
+        $type = isset($_POST['history_type']) ? sanitize_key(wp_unslash($_POST['history_type'])) : 'changes';
+        if (!in_array($type, ['changes', 'logins'], true)) {
+            $type = 'changes';
+        }
 
         if (!$user_id || !$this->user_can_manage_history($user_id)) {
             wp_send_json_error(['message' => __('You are not allowed to view this history.', 'user-history')]);
         }
 
-        $history = $this->filter_history_results($this->get_user_history($user_id, 20, $offset));
+        $history = $this->filter_history_results($this->get_user_history($user_id, 20, $offset, $type));
 
         if (empty($history)) {
             wp_send_json_success(['html' => '', 'hasMore' => false]);
         }
 
-        $html = $this->render_history_rows($history);
-        $total = $this->get_user_history_count($user_id);
+        $html = ($type === 'logins')
+            ? User_History_Login_Tracker::get_instance($this)->render_login_rows($history)
+            : $this->render_history_rows($history);
+        $total = $this->get_user_history_count($user_id, $type);
         $has_more = ($offset + 20) < $total;
 
         wp_send_json_success([
@@ -1954,12 +2090,18 @@ class User_History {
     private function load_settings() {
         require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-settings.php';
         require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-lock.php';
+        require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-login-tracker.php';
         User_History_Settings::get_instance();
     }
 
     private function boot_lock_feature() {
         require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-lock.php';
         User_History_Lock::get_instance($this)->maybe_migrate_lock_user_account();
+    }
+
+    private function boot_login_tracker() {
+        require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-login-tracker.php';
+        User_History_Login_Tracker::get_instance($this);
     }
 
     private function get_retention_days() {
@@ -3037,6 +3179,7 @@ class User_History {
 
 require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-settings.php';
 require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-lock.php';
+require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-login-tracker.php';
 
 // Initialize the plugin
 User_History::get_instance();

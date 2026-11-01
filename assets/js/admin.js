@@ -6,11 +6,13 @@
 
     $(document).ready(function () {
         placeNicenameField();
+        initHistoryTabs();
         initLoadMore();
         initChangeUsername();
         initClearHistory();
         initClearAllLogs();
         initLockToggle();
+        initDestroySessions();
     });
 
     const i18n = userHistoryData.i18n || {};
@@ -30,24 +32,44 @@
     }
 
     /**
-     * Initialize load more functionality
+     * Switch Account History tabs without replacing the nicename field.
      */
-    function initLoadMore() {
-        const $loadMoreBtn = $('#user-history-load-more');
-        const $tbody = $('#user-history-tbody');
+    function initHistoryTabs() {
+        const $tabs = $('.user-history-tabs .nav-tab');
 
-        if (!$loadMoreBtn.length) {
+        if (!$tabs.length) {
             return;
         }
 
-        $loadMoreBtn.on('click', function (e) {
+        $tabs.on('click', function (e) {
+            e.preventDefault();
+
+            const $tab = $(this);
+            const target = $tab.attr('href');
+            if (!target || target.charAt(0) !== '#') {
+                return;
+            }
+
+            $tabs.removeClass('nav-tab-active').attr('aria-selected', 'false');
+            $tab.addClass('nav-tab-active').attr('aria-selected', 'true');
+            $('.user-history-tab-panel').attr('hidden', true);
+            $(target).removeAttr('hidden');
+        });
+    }
+
+    /**
+     * Initialize load more functionality
+     */
+    function initLoadMore() {
+        $(document).on('click', '.user-history-load-more', function (e) {
             e.preventDefault();
 
             const $btn = $(this);
             const offset = parseInt($btn.data('offset'), 10);
-            const total = parseInt($btn.data('total'), 10);
+            const targetId = $btn.data('target') || 'user-history-tbody';
+            const $tbody = $('#' + targetId);
 
-            if ($btn.hasClass('loading')) {
+            if (!$tbody.length || $btn.hasClass('loading')) {
                 return;
             }
 
@@ -61,7 +83,8 @@
                     action: 'load_more_user_history',
                     nonce: userHistoryData.nonce,
                     user_id: userHistoryData.userId,
-                    offset: offset
+                    offset: offset,
+                    history_type: $btn.data('history-type') || 'changes'
                 }
             })
             .done(function (response) {
@@ -72,7 +95,7 @@
                         $btn.data('offset', response.data.newOffset);
                         $btn.removeClass('loading').text(i18n.loadMore || 'Load More');
                     } else {
-                        $btn.parent().remove();
+                        $btn.remove();
                     }
                 } else {
                     const message = response && response.data && response.data.message
@@ -274,19 +297,17 @@
             })
             .done(function (response) {
                 if (response.success) {
-                    const emptyMessage = document.createElement('p');
-                    emptyMessage.className = 'user-history-empty';
-                    emptyMessage.appendChild(
-                        document.createTextNode(i18n.emptyLog || 'No changes have been recorded yet.')
+                    resetHistoryTable(
+                        'user-history-tab-changes',
+                        i18n.emptyLog || 'No changes have been recorded yet.'
                     );
-                    const log = document.getElementById('user-history-log');
-                    if (log) {
-                        while (log.firstChild) {
-                            log.removeChild(log.firstChild);
-                        }
-                        log.appendChild(emptyMessage);
-                    }
+                    resetHistoryTable(
+                        'user-history-tab-logins',
+                        i18n.emptyLogins || 'No login events have been recorded yet.'
+                    );
                     $('.user-history-count').remove();
+                    $btn.remove();
+                    $('.user-history-load-more').remove();
                 } else {
                     const message = response && response.data && response.data.message
                         ? response.data.message
@@ -359,6 +380,110 @@
                 $btn.removeClass('loading').prop('disabled', false).text(i18n.clearAllLogs || 'Clear All Logs');
             });
         });
+    }
+
+    function initDestroySessions() {
+        const $btn = $('#user-history-destroy-sessions');
+        const message = document.getElementById('user-history-destroy-sessions-message');
+
+        if (!$btn.length) {
+            return;
+        }
+
+        $btn.on('click', function (e) {
+            e.preventDefault();
+
+            const $button = $(this);
+            const targetId = parseInt($button.data('user-id') || userHistoryData.userId, 10);
+            const currentId = parseInt(userHistoryData.currentUserId, 10);
+            const confirmText = targetId === currentId
+                ? (i18n.confirmDestroyOwnSessions || 'This will sign you out of this site as well. Continue?')
+                : (i18n.confirmDestroySessions || 'Log this user out of all sessions?');
+
+            if (!confirm(confirmText)) {
+                return;
+            }
+
+            if ($button.hasClass('loading')) {
+                return;
+            }
+
+            setLockMessage(message, '');
+            $button.addClass('loading').prop('disabled', true).text(i18n.destroyingSessions || 'Working...');
+
+            $.ajax({
+                url: userHistoryData.ajaxUrl,
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    action: 'user_history_destroy_sessions',
+                    nonce: userHistoryData.destroySessionsNonce,
+                    user_id: targetId
+                }
+            })
+            .done(function (response) {
+                if (response.success) {
+                    const text = response.data && response.data.message
+                        ? response.data.message
+                        : i18n.success || 'Success.';
+                    setLockMessage(message, text, true);
+                    $button.removeClass('loading').prop('disabled', true).text(i18n.logOutEverywhere || 'Log Out Everywhere');
+                    const $tbody = $('.user-history-sessions-table tbody');
+                    if ($tbody.length) {
+                        $tbody.empty();
+                        const row = document.createElement('tr');
+                        const cell = document.createElement('td');
+                        cell.colSpan = 4;
+                        const empty = document.createElement('p');
+                        empty.className = 'user-history-empty';
+                        empty.appendChild(document.createTextNode(i18n.noSessions || 'No active sessions.'));
+                        cell.appendChild(empty);
+                        row.appendChild(cell);
+                        $tbody.append(row);
+                    }
+                    return;
+                }
+
+                const errorText = response && response.data && response.data.message
+                    ? response.data.message
+                    : i18n.errorGeneric || 'Something went wrong. Please try again.';
+                setLockMessage(message, errorText, false);
+                $button.removeClass('loading').prop('disabled', false).text(i18n.logOutEverywhere || 'Log Out Everywhere');
+            })
+            .fail(function () {
+                setLockMessage(message, i18n.errorGeneric || 'Something went wrong. Please try again.', false);
+                $button.removeClass('loading').prop('disabled', false).text(i18n.logOutEverywhere || 'Log Out Everywhere');
+            });
+        });
+    }
+
+    function resetHistoryTable(panelId, emptyText) {
+        const panel = document.getElementById(panelId);
+        if (!panel) {
+            return;
+        }
+
+        const table = panel.querySelector('table');
+        if (table && table.parentNode) {
+            table.parentNode.removeChild(table);
+        }
+
+        let empty = panel.querySelector('.user-history-empty');
+        if (!empty) {
+            empty = document.createElement('p');
+            empty.className = 'user-history-empty';
+            const actions = panel.querySelector('.user-history-actions');
+            if (actions && actions.parentNode) {
+                panel.insertBefore(empty, actions);
+            } else {
+                panel.appendChild(empty);
+            }
+        }
+
+        while (empty.firstChild) {
+            empty.removeChild(empty.firstChild);
+        }
+        empty.appendChild(document.createTextNode(emptyText));
     }
 
     function initLockToggle() {

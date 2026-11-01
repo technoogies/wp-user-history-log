@@ -36,6 +36,8 @@ final class SettingsAdminTest extends WP_Ajax_UnitTestCase
         $this->assertSame(0, $settings->sanitize_retention_days('0'));
         $this->assertSame(400, $settings->sanitize_retention_days('400'));
         $this->assertSame(0, (int) get_option('user_history_retention_days', 0));
+        $this->assertSame('0', $settings->sanitize_login_tracking(''));
+        $this->assertSame('0', (string) get_option('user_history_login_tracking_enabled', '0'));
 
         $removed = $this->plugin->prune_expired_history();
         $this->assertSame(0, $removed);

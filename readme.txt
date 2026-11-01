@@ -4,7 +4,7 @@ Tags: user history, user log, audit log, change username, user tracking
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.3.0
+Stable tag: 1.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,6 +24,7 @@ User History tracks all changes made to user profiles and displays a complete hi
 * **Clear History** - Operators with the manage_user_history capability can clear the history log for a user
 * **User History Settings** - Admin menu after Users with retention, IP collection, and Clear All Logs
 * **Lock Accounts** - Lock a user to sign them out and block logins; one-time Lock User Account migration
+* **Login and session monitoring** - Optional login recording (off by default) and a Sessions tab with Log Out Everywhere
 * **Privacy Export** - WordPress personal-data export includes account history; erasure keeps the audit trail unless explicitly allowed
 * **Multisite Compatible** - Works with WordPress multisite installations
 * **Members Plugin Compatible** - Works with the Members plugin for multiple role assignments
@@ -119,6 +120,10 @@ On the user edit page, click Lock Account. They are signed out immediately and c
 
 On activation or upgrade, users with baba_user_locked set to yes are copied to user_history_locked once. If this plugin has no custom message yet, baba_locked_message is copied. The migration does not lock anyone else.
 
+= How do I record logins? =
+
+Turn on Record logins under User History → Settings. It stays off until you do. Failed logins are stored only for existing accounts. Passwords are never stored. Account History → Sessions is always available to people who can edit that user.
+
 == Screenshots ==
 
 1. Account History section on the user edit page
@@ -126,6 +131,10 @@ On activation or upgrade, users with baba_user_locked set to yes are copied to u
 3. Search results showing users found by previous email/username
 
 == Changelog ==
+
+= 1.4.0 =
+* Added optional login/logout/failed-login recording (default off) with encrypted, non-searchable user-agents
+* Added Account History Logins and Sessions tabs, plus Log Out Everywhere
 
 = 1.3.0 =
 * Added account lock/unlock with session termination, login and application-password blocking, and a Locked view on All Users
@@ -203,6 +212,9 @@ On activation or upgrade, users with baba_user_locked set to yes are copied to u
 * Account History display on user edit page
 
 == Upgrade Notice ==
+
+= 1.4.0 =
+Adds optional login recording (off by default) and a Sessions tab. Existing sites do not start logging logins until you turn the setting on.
 
 = 1.3.0 =
 Adds account locking. Users already locked by Lock User Account stay locked. WP-CLI still works for locked accounts.

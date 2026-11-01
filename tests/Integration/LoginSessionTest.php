@@ -42,7 +42,7 @@ final class LoginSessionTest extends WP_Ajax_UnitTestCase
         $this->tracker->log_failed_login(get_userdata($subject)->user_login);
 
         wp_set_current_user($administrator);
-        $this->assertSame([], $this->historySnapshot($subject));
+        $this->assertSame([], $this->loginHistorySnapshot($subject));
         $this->assertSame(0, $this->plugin->get_user_history_count($subject, 'logins'));
     }
 
@@ -58,7 +58,7 @@ final class LoginSessionTest extends WP_Ajax_UnitTestCase
         $this->tracker->log_failed_login('definitely-not-a-user-' . wp_generate_password(8, false, false));
 
         wp_set_current_user($administrator);
-        $rows = $this->historySnapshot($subject);
+        $rows = $this->loginHistorySnapshot($subject);
         $this->assertCount(3, $rows);
         $this->assertSame(['login', 'logout', 'login_failed'], array_column($rows, 'change_type'));
         $this->assertSame(['user_session', 'user_session', 'user_session'], array_column($rows, 'field_name'));
@@ -70,7 +70,10 @@ final class LoginSessionTest extends WP_Ajax_UnitTestCase
         }
 
         $this->assertSame(3, $this->plugin->get_user_history_count($subject, 'logins'));
-        $this->assertSame(0, $this->plugin->get_user_history_count($subject, 'changes'));
+        $change_types = array_column((array) $this->plugin->get_user_history($subject, 50, 0, 'changes'), 'change_type');
+        $this->assertNotContains('login', $change_types);
+        $this->assertNotContains('logout', $change_types);
+        $this->assertNotContains('login_failed', $change_types);
     }
 
     public function test_user_agent_is_encrypted_and_not_historically_searchable(): void
@@ -81,7 +84,7 @@ final class LoginSessionTest extends WP_Ajax_UnitTestCase
         $_SERVER['HTTP_USER_AGENT'] = $marker;
         $this->tracker->log_login(get_userdata($subject)->user_login, get_userdata($subject));
 
-        $rows = $this->historySnapshot($subject);
+        $rows = $this->loginHistorySnapshot($subject);
         $this->assertNotSame('', $rows[0]['new_value']);
         $this->assertStringNotContainsString($marker, (string) $rows[0]['new_value']);
         $this->assertSame('', $rows[0]['search_tokens']);
@@ -102,12 +105,12 @@ final class LoginSessionTest extends WP_Ajax_UnitTestCase
         unset($administrator);
 
         $this->tracker->log_failed_login(get_userdata($subject)->user_email);
-        $with_ip = $this->historySnapshot($subject);
+        $with_ip = $this->loginHistorySnapshot($subject);
         $this->assertSame('203.0.113.80', $this->plugin->get_history_row_ip((object) $with_ip[0]));
 
         update_option('user_history_collect_ip', '0');
         $this->tracker->log_failed_login(get_userdata($subject)->user_email);
-        $rows = $this->historySnapshot($subject);
+        $rows = $this->loginHistorySnapshot($subject);
         $without_ip = $rows[count($rows) - 1];
         $this->assertSame('', $this->plugin->get_history_row_ip((object) $without_ip));
         delete_option('user_history_collect_ip');
@@ -189,13 +192,13 @@ final class LoginSessionTest extends WP_Ajax_UnitTestCase
         return $response;
     }
 
-    private function historySnapshot($user_id): array
+    private function loginHistorySnapshot($user_id): array
     {
         global $wpdb;
 
         $rows = $wpdb->get_results(
             $wpdb->prepare(
-                'SELECT field_name, old_value, new_value, change_type, search_tokens, changed_by_details FROM ' . $wpdb->prefix . User_History::TABLE_NAME . ' WHERE user_id = %d ORDER BY id ASC',
+                'SELECT field_name, old_value, new_value, change_type, search_tokens, changed_by_details FROM ' . $wpdb->prefix . User_History::TABLE_NAME . " WHERE user_id = %d AND change_type IN ('login','logout','login_failed') ORDER BY id ASC",
                 (int) $user_id
             ),
             ARRAY_A

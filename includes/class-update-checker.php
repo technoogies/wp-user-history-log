@@ -82,6 +82,6 @@ class User_History_Update_Checker {
         // branch; PUC still looks at Releases first when the branch is main.
         $this->checker->setBranch('main');
 
-        // Public repository. Never call setAuthentication() or pass a token.
+        // Public repository. Do not pass a GitHub token.
     }
 }

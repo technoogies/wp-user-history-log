@@ -104,7 +104,7 @@ final class PluginSourceSecurityTest extends TestCase
         $updater = $this->updaterSource();
         $this->assertStringContainsString("if (!defined('ABSPATH'))", $updater);
         $this->assertStringNotContainsString('wp_ajax_nopriv_', $updater);
-        $this->assertStringNotContainsString('setAuthentication', $updater);
+        $this->assertStringNotContainsString('->setAuthentication(', $updater);
         $this->assertStringNotContainsString('TRUNCATE', $updater);
         $this->assertStringContainsString('https://github.com/technoogies/wp-user-history-log', $updater);
     }

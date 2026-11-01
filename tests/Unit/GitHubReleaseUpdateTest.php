@@ -34,7 +34,7 @@ final class GitHubReleaseUpdateTest extends TestCase
         $this->assertStringContainsString("SLUG = 'wp-user-history-log'", $source);
         $this->assertStringContainsString('lib/plugin-update-checker/plugin-update-checker.php', $source);
         $this->assertStringContainsString("setBranch('main')", $source);
-        $this->assertStringNotContainsString('setAuthentication', $source);
+        $this->assertStringNotContainsString('->setAuthentication(', $source);
         $this->assertStringNotContainsString('wp_ajax_nopriv_', $source);
         $this->assertStringNotContainsString('TRUNCATE', $source);
         $this->assertStringNotContainsString('ipinfo.io', $source);

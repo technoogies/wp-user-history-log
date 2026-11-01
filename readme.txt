@@ -4,7 +4,7 @@ Tags: user history, user log, audit log, change username, user tracking
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.7.0
+Stable tag: 1.8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -28,6 +28,7 @@ User History tracks all changes made to user profiles and displays a complete hi
 * **Dashboard Access** - Optional /wp-admin restriction (off by default). Enabling requires manage_user_history and manage_options
 * **Username Restrictions** - Optional registration username rules (off by default) with a Test Usernames tool
 * **Activity Log** - Optional site-wide log of content, media, comments, users, logins, extensions, and settings (off by default)
+* **Unique nicenames for new accounts** - New users get a nicename from display name or first+last; never the username; unique suffix if needed. Existing accounts are not rewritten
 * **Privacy Export** - WordPress personal-data export includes account history; erasure keeps the audit trail unless explicitly allowed
 * **Multisite Compatible** - Works with WordPress multisite installations
 * **Members Plugin Compatible** - Works with the Members plugin for multiple role assignments
@@ -131,6 +132,10 @@ Turn on Record logins under User History → Settings. It stays off until you do
 
 Open User History → Dashboard Access and turn on Restrict Dashboard Access. This stays off until you do. Enabling it requires manage_user_history and manage_options. A subscriber is redirected; administrators are not. Allow profile keeps profile.php reachable. AJAX stays unlocked unless you check that box. Remove Dashboard Access settings are imported once if present; the switch is not turned on automatically.
 
+= How are nicenames set for new users? =
+
+For new accounts only, the plugin slugs the nicename from the display name, or from first and last name on Users → Add New. It is never the same as the username. If that slug is already used, a suffix such as -2 is added. Existing accounts keep their current nicename. You can still edit Nicename under Nickname on the profile.
+
 = How do I restrict registration usernames? =
 
 Open User History → Username Restrictions and turn the feature on. It stays off until you do. Block exact names or fragments, optionally disallow spaces, and use Test Usernames to see the same reasons. Existing accounts are never renamed. Users → Add New and Change Username bypass the rules unless you also apply them to administrators. Restrict Usernames settings are imported once if present; the switch is not turned on automatically.
@@ -142,6 +147,11 @@ Open User History → Username Restrictions and turn the feature on. It stays of
 3. Search results showing users found by previous email/username
 
 == Changelog ==
+
+= 1.8.0 =
+* Generated a unique nicename for new accounts from display name or first+last
+* Kept the nicename different from the username and added a suffix when that slug was already taken
+* Left existing accounts unchanged; the profile Nicename field stays editable under Nickname
 
 = 1.7.0 =
 * Added an optional site-wide Activity Log (default off) under User History → Activity Log
@@ -237,6 +247,9 @@ Open User History → Username Restrictions and turn the feature on. It stays of
 * Account History display on user edit page
 
 == Upgrade Notice ==
+
+= 1.8.0 =
+New accounts get a unique nicename from display name or first+last. It is never the username. Existing accounts are not changed.
 
 = 1.7.0 =
 Adds an optional site-wide Activity Log. It stays off until you enable it. Retention still defaults to 0 (keep forever) and the existing daily hook prunes both tables.

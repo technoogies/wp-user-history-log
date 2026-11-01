@@ -4,7 +4,7 @@
  * Plugin Name: WP User History Log
  * Plugin URI: https://github.com/technoogies/wp-user-history-log
  * Description: Tracks changes made to user accounts (name, email, username, nicename, etc.) Adds NiceName edit field and displays a history log on the user edit page.
- * Version: 1.7.0
+ * Version: 1.8.0
  * Author: Technoogies / gpt 5.1 codex | from WPZOOM user-history
  * Author URI: https://technoogies.com
  * License: GPL v2 or later
@@ -268,6 +268,7 @@ class User_History {
         $this->boot_dashboard_access();
         $this->boot_username_restrictions();
         $this->boot_activity_log();
+        $this->boot_new_user_nicename();
     }
 
     /**
@@ -2214,6 +2215,7 @@ class User_History {
         require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-dashboard-access.php';
         require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-username-restrictions.php';
         require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-activity-log.php';
+        require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-new-user-nicename.php';
         User_History_Settings::get_instance();
     }
 
@@ -2241,6 +2243,11 @@ class User_History {
         require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-settings.php';
         require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-activity-log.php';
         User_History_Activity_Log::get_instance($this);
+    }
+
+    private function boot_new_user_nicename() {
+        require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-new-user-nicename.php';
+        User_History_New_User_Nicename::get_instance($this);
     }
 
     private function create_activity_table() {
@@ -3327,9 +3334,11 @@ class User_History {
     }
 
     /**
-     * Sanitize nicename value
+     * Sanitize nicename value.
+     *
+     * Public so new-account generation can reuse the same rules as profile edits.
      */
-    private function sanitize_nicename_value($value) {
+    public function sanitize_nicename_value($value) {
         if ($value === null) {
             return '';
         }
@@ -3339,9 +3348,11 @@ class User_History {
     }
 
     /**
-     * Check nicename uniqueness
+     * Check nicename uniqueness.
+     *
+     * Public so new-account generation can reuse the same lookup as profile edits.
      */
-    private function is_nicename_unique($nicename, $user_id) {
+    public function is_nicename_unique($nicename, $user_id) {
         global $wpdb;
 
         $existing = $wpdb->get_var(
@@ -3361,6 +3372,7 @@ require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-lock.php';
 require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-login-tracker.php';
 require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-dashboard-access.php';
 require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-username-restrictions.php';
+require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-new-user-nicename.php';
 
 // Initialize the plugin
 User_History::get_instance();

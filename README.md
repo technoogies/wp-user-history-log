@@ -19,6 +19,7 @@ A WordPress plugin that tracks changes made to user accounts and allows admins t
 - **Dashboard Access** - Optional `/wp-admin` restriction (off by default). Enabling it requires `manage_user_history` and `manage_options`
 - **Username Restrictions** - Optional registration username rules (off by default) with a Test Usernames tool
 - **Activity Log** - Optional site-wide log of content, media, comments, users, logins, extensions, and settings (off by default)
+- **Unique nicenames for new accounts** - New users get a URL-friendly nicename from display name or first+last; it is never the username and stays unique. Existing accounts are not rewritten
 - **Privacy Export** - WordPress personal-data export includes decrypted account history; erasure keeps the audit trail unless an operator explicitly allows removal
 - **Multisite Compatible** - Works with WordPress multisite installations
 - **Members Plugin Compatible** - Works with the Members plugin for multiple role assignments
@@ -209,7 +210,16 @@ If Remove Dashboard Access options exist (`rda_*`), they are copied once. The re
 
 Administrators bypass the rules on **Users → Add New** and **Change Username** unless **Also apply the rules to usernames chosen by administrators** is on. The `user_history_validate_username` filter can add a custom rule. Restrict Usernames settings (`c2c_restrict_usernames`) are imported once; the switch stays off.
 
+### New account nicenames
+
+New accounts only. The plugin slugs the nicename from display name, or from first+last when that is what **Users → Add New** provides. The value is never equal to the username. If that slug is already taken, it adds `-2`, `-3`, and so on. Existing `user_nicename` values stay as they are. You can still edit Nicename under Nickname on the user profile.
+
 ## Changelog
+
+### 1.8.0
+- Generated a unique nicename for new accounts from display name or first+last
+- Kept the nicename different from the username and added a suffix when that slug was already taken
+- Left existing accounts unchanged; the profile Nicename field stays editable under Nickname
 
 ### 1.7.0
 - Added an optional site-wide Activity Log (default off) under User History → Activity Log

@@ -75,6 +75,18 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertStringContainsString('createTextNode', $usernames);
         $this->assertStringNotContainsString('innerHTML', $usernames);
 
+        $newNicename = $this->newUserNicenameSource();
+        $this->assertStringContainsString("if (!defined('ABSPATH'))", $newNicename);
+        $this->assertStringContainsString("add_filter('wp_pre_insert_user_data'", $newNicename);
+        $this->assertStringContainsString('if ($update || !is_array($data))', $newNicename);
+        $this->assertStringContainsString('sanitize_nicename_value', $newNicename);
+        $this->assertStringContainsString('is_nicename_unique', $newNicename);
+        $this->assertStringNotContainsString('wp_ajax_nopriv_', $newNicename);
+        $this->assertStringNotContainsString('TRUNCATE', $newNicename);
+        $this->assertStringNotContainsString('ipinfo.io', $newNicename);
+        $this->assertStringNotContainsString('wp_update_user', $newNicename);
+        $this->assertStringNotContainsString('get_users', $newNicename);
+
         $activity = $this->activitySource();
         $this->assertStringContainsString("wp_ajax_' . self::CLEAR_ACTION", $activity);
         $this->assertStringNotContainsString('wp_ajax_nopriv_', $activity);
@@ -244,6 +256,8 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertStringContainsString('initHistoryTabs', $script);
         $this->assertStringContainsString('initDestroySessions', $script);
         $this->assertStringContainsString('placeNicenameField', $script);
+        $this->assertStringContainsString('User_History_New_User_Nicename', $this->source);
+        $this->assertStringContainsString('boot_new_user_nicename', $this->source);
     }
 
     private function settingsSource(): string
@@ -292,5 +306,13 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertNotFalse($activity);
 
         return $activity;
+    }
+
+    private function newUserNicenameSource(): string
+    {
+        $nicename = file_get_contents(dirname(__DIR__, 2) . '/includes/class-new-user-nicename.php');
+        $this->assertNotFalse($nicename);
+
+        return $nicename;
     }
 }

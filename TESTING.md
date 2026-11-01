@@ -46,6 +46,7 @@ The suite checks that:
 - username restrictions stay off by default, do not auto-enable from Restrict Usernames, never rename existing accounts, apply to Change Username only when apply-to-admins is on, and expose user_history_validate_username;
 - activity log stays off by default, records only enabled event groups, reuses the daily prune hook for both tables, refuses TRUNCATE, and requires manage_user_history for the page and transactional Clear Activity Log;
 - nicename edits use `edit_users` / `edit_user` instead of hard-coded administrator role slugs;
+- new accounts get a unique nicename from display name or first+last that is never the username; existing nicenames stay unchanged;
 - the empty-history notice is built with text nodes instead of a jQuery `.html()` string;
 - plugin header Version matches the readme stable tag.
 

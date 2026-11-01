@@ -35,6 +35,7 @@ final class MultisiteUsernameChangeAtomicityTest extends WP_Ajax_UnitTestCase
                 'user_nicename' => 'mapped-super-admin',
             ]
         );
+        $this->pinExistingAccountNicename($target, 'mapped-super-admin');
         grant_super_admin($target);
 
         wp_set_current_user($operator);
@@ -174,6 +175,7 @@ final class MultisiteUsernameChangeAtomicityTest extends WP_Ajax_UnitTestCase
                 'user_nicename' => 'nicename-failure-admin',
             ]
         );
+        $this->pinExistingAccountNicename($target, 'nicename-failure-admin');
         grant_super_admin($target);
 
         wp_set_current_user($operator);
@@ -236,6 +238,19 @@ final class MultisiteUsernameChangeAtomicityTest extends WP_Ajax_UnitTestCase
         } finally {
             remove_filter('user_history_force_username_change_failure', $filter, 10);
         }
+    }
+
+    private function pinExistingAccountNicename($user_id, $nicename): void
+    {
+        $result = wp_update_user(
+            [
+                'ID'            => (int) $user_id,
+                'user_nicename' => $nicename,
+            ]
+        );
+
+        $this->assertSame((int) $user_id, $result);
+        $this->assertSame($nicename, get_userdata($user_id)->user_nicename);
     }
 
     private function identity($user_id): array

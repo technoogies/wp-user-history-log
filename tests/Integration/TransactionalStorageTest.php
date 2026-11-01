@@ -103,6 +103,54 @@ final class TransactionalStorageTest extends WP_Ajax_UnitTestCase
         $this->assertSame($original, $this->historySnapshot($subject));
     }
 
+    public function test_clear_all_logs_rolls_back_when_maintenance_insert_fails(): void
+    {
+        [$administrator, $subject] = $this->createActorAndSubject();
+        wp_set_current_user($administrator);
+        $this->seedHistory($subject, 'before-clear-all');
+        $original = $this->historySnapshot($subject);
+
+        $response = $this->withForcedLogFailure(function () {
+            return $this->clearAllLogs();
+        });
+
+        $this->assertFalse($response['success']);
+        $this->assertSame($original, $this->historySnapshot($subject));
+        $this->assertSame([], $this->historySnapshot(0));
+    }
+
+    public function test_clear_all_logs_refuses_when_a_transaction_cannot_start(): void
+    {
+        [$administrator, $subject] = $this->createActorAndSubject();
+        wp_set_current_user($administrator);
+        $this->seedHistory($subject, 'begin-clear-all');
+        $original = $this->historySnapshot($subject);
+
+        $response = $this->withForcedTransactionFailure('begin', function () {
+            return $this->clearAllLogs();
+        });
+
+        $this->assertFalse($response['success']);
+        $this->assertSame($original, $this->historySnapshot($subject));
+        $this->assertSame([], $this->historySnapshot(0));
+    }
+
+    public function test_clear_all_logs_refuses_a_nontransactional_history_table(): void
+    {
+        [$administrator, $subject] = $this->createActorAndSubject();
+        wp_set_current_user($administrator);
+        $this->seedHistory($subject, 'myisam-clear-all');
+        $original = $this->historySnapshot($subject);
+
+        $response = $this->withForcedEngine($this->historyTable(), 'MyISAM', function () {
+            return $this->clearAllLogs();
+        });
+
+        $this->assertFalse($response['success']);
+        $this->assertStringContainsString('transactional storage is unavailable', $response['data']['message']);
+        $this->assertSame($original, $this->historySnapshot($subject));
+    }
+
     public function test_username_change_rolls_back_when_audit_insert_fails(): void
     {
         [$administrator, $subject] = $this->createActorAndSubject('txn-insert-target');
@@ -276,6 +324,25 @@ final class TransactionalStorageTest extends WP_Ajax_UnitTestCase
 
         try {
             $this->_handleAjax('clear_user_history');
+        } catch (WPAjaxDieContinueException $exception) {
+            // Expected: wp_send_json_* ends the AJAX request.
+        }
+
+        $response = json_decode($this->_last_response, true);
+        $this->assertIsArray($response);
+
+        return $response;
+    }
+
+    private function clearAllLogs(): array
+    {
+        $_POST = [
+            'action' => 'user_history_clear_all_logs',
+            'nonce'  => wp_create_nonce('user_history_clear_all_logs'),
+        ];
+
+        try {
+            $this->_handleAjax('user_history_clear_all_logs');
         } catch (WPAjaxDieContinueException $exception) {
             // Expected: wp_send_json_* ends the AJAX request.
         }

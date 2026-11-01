@@ -246,3 +246,27 @@
     background: #b32d2e;
     border-color: #b32d2e;
 }
+
+/* ==========================================================================
+   Settings
+   ========================================================================== */
+
+.user-history-settings-clear-all {
+    margin-top: 2em;
+    padding-top: 1.5em;
+    border-top: 1px solid #c3c4c7;
+    max-width: 720px;
+}
+
+.user-history-clear-all-message {
+    display: inline-block;
+    margin-left: 8px;
+}
+
+.user-history-clear-all-message.success {
+    color: #1e4620;
+}
+
+.user-history-clear-all-message.error {
+    color: #b32d2e;
+}

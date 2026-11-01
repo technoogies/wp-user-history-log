@@ -62,6 +62,32 @@ final class MultisiteAuditGovernanceTest extends WP_Ajax_UnitTestCase
         $this->assertTrue($role->has_cap(User_History::CLEAR_HISTORY_CAPABILITY));
     }
 
+    public function test_subsite_account_editor_without_manage_user_history_cannot_clear_all_logs(): void
+    {
+        $site_id = self::factory()->blog->create();
+        switch_to_blog($site_id);
+        User_History::get_instance()->activate();
+
+        $editor = self::factory()->user->create(['role' => 'editor']);
+        $editor_user = get_userdata($editor);
+        $editor_user->add_cap('edit_users');
+        $editor_user->add_cap('list_users');
+        $subject = self::factory()->user->create(['role' => 'subscriber']);
+        add_user_to_blog($site_id, $editor, 'editor');
+        add_user_to_blog($site_id, $subject, 'subscriber');
+
+        wp_set_current_user($editor);
+        $this->seedHistory($subject, 'ms-keep-all');
+        $original = $this->historySnapshot($subject);
+
+        $this->assertFalse(current_user_can(User_History::CLEAR_HISTORY_CAPABILITY));
+
+        $response = $this->clearAllLogs();
+
+        $this->assertFalse($response['success']);
+        $this->assertSame($original, $this->historySnapshot($subject));
+    }
+
     private function seedHistory($user_id, $marker): void
     {
         global $wpdb;
@@ -93,6 +119,25 @@ final class MultisiteAuditGovernanceTest extends WP_Ajax_UnitTestCase
 
         try {
             $this->_handleAjax('clear_user_history');
+        } catch (WPAjaxDieContinueException $exception) {
+            // Expected: wp_send_json_* ends the AJAX request.
+        }
+
+        $response = json_decode($this->_last_response, true);
+        $this->assertIsArray($response);
+
+        return $response;
+    }
+
+    private function clearAllLogs(): array
+    {
+        $_POST = [
+            'action' => 'user_history_clear_all_logs',
+            'nonce'  => wp_create_nonce('user_history_clear_all_logs'),
+        ];
+
+        try {
+            $this->_handleAjax('user_history_clear_all_logs');
         } catch (WPAjaxDieContinueException $exception) {
             // Expected: wp_send_json_* ends the AJAX request.
         }

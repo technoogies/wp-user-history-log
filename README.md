@@ -13,6 +13,7 @@ A WordPress plugin that tracks changes made to user accounts and allows admins t
 - **Search by Previous Values** - Find users on the All Users page by their old email or username
 - **See Who Made Changes** - Each log entry shows whether the user changed their own profile or if an admin made the change
 - **Clear History** - Operators with the dedicated `manage_user_history` capability can clear a user's history log
+- **User History Settings** - A User History admin menu (after Users) with retention, IP collection, and Clear All Logs
 - **Privacy Export** - WordPress personal-data export includes decrypted account history; erasure keeps the audit trail unless an operator explicitly allows removal
 - **Multisite Compatible** - Works with WordPress multisite installations
 - **Members Plugin Compatible** - Works with the Members plugin for multiple role assignments
@@ -26,7 +27,7 @@ A WordPress plugin that tracks changes made to user accounts and allows admins t
 
 1. Download the plugin and upload to `/wp-content/plugins/user-history/`
 2. Activate through the 'Plugins' menu in WordPress
-3. Visit any user's edit page to see their Account History section
+3. Visit **User History → Settings** for retention and IP options, or any user's edit page to see their Account History section
 
 ## Usage
 
@@ -64,15 +65,23 @@ On the user edit page, scroll down to the Account History section and click the 
 
 Clearing deletes existing history and writes a maintenance event in one transaction; a failed maintenance insert or commit leaves the previous history unchanged.
 
+### Settings
+
+Open **User History → Settings** (also linked from the Plugins screen). The menu requires `manage_user_history`. An account that can edit users but does not have that capability cannot open it.
+
 ### Retention
 
-Automatic retention pruning is off by default. Existing history is kept until an operator enables a positive retention window with the `user_history_retention_days` option or filter. When enabled, a daily cron removes only rows older than that window and writes a maintenance audit event for each affected user. A failed delete, maintenance insert, or commit leaves the previous history unchanged.
+Automatic retention pruning is off by default. The Settings field shows **0** (keep forever / cleanup off). Existing history is kept until an operator types a positive day count in Settings or sets the `user_history_retention_days` option or filter. When enabled, the existing daily hook removes only rows older than that window and writes a maintenance audit event for each affected user. A failed delete, maintenance insert, or commit leaves the previous history unchanged. Settings does not add a second cron.
+
+### Clear All Logs
+
+On **User History → Settings**, operators with `manage_user_history` can clear every history row on the site. The action asks for confirmation, runs in a real database transaction, deletes rows (it does not truncate the table), and writes a maintenance event on the operator's account history. If a transaction cannot start, nothing is changed.
 
 ### Personal Data and Uninstall
 
 WordPress Tools → Export Personal Data includes decrypted account-history rows. The registered eraser keeps history as an audit record unless the `user_history_erase_personal_data` filter returns true. Uninstalling the plugin does not drop the history table or options unless `USER_HISTORY_DELETE_DATA_ON_UNINSTALL` is defined as true or the `user_history_delete_data_on_uninstall` option is set.
 
-Operator IP addresses are still collected by default. To stop storing them without changing other behavior, define `USER_HISTORY_COLLECT_IP` as false or return false from the `user_history_collect_ip` filter.
+Operator IP addresses are still collected by default. Uncheck **Record IP addresses** on Settings to stop storing them, define `USER_HISTORY_COLLECT_IP` as false, or return false from the `user_history_collect_ip` filter. The constant wins when it is defined.
 
 ## Tracked Fields
 
@@ -112,9 +121,10 @@ Optional governance constants and options:
 
 ```php
 // Stop storing operator IP addresses. Collection remains on unless this is set.
+// Settings can also store user_history_collect_ip as 0. The constant wins when defined.
 define('USER_HISTORY_COLLECT_IP', false);
 
-// Keep history forever by default. A positive value enables daily pruning of older rows.
+// Keep history forever by default (Settings shows 0). A positive value enables daily pruning of older rows.
 update_option('user_history_retention_days', 365);
 
 // Wipe the history table only when the operator explicitly uninstalls with this set.
@@ -160,6 +170,12 @@ The history log appears at the bottom of the user edit page, showing all tracked
 Click "Change" next to the username field to reveal an inline form for changing the username.
 
 ## Changelog
+
+### 1.2.0
+- Added a User History admin menu after Users, with Settings as the only page
+- Exposed retention (default 0 / keep forever) and IP collection (default on) on Settings
+- Added Clear All Logs behind `manage_user_history`, using a real transaction and a maintenance event
+- Linked Settings from the Plugins screen
 
 ### 1.1.1
 - Replaced hard-coded administrator role-name checks with `edit_users` / `edit_user` capability policy for nicename edits

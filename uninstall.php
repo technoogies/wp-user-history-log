@@ -40,6 +40,7 @@ function user_history_uninstall_current_site() {
     delete_option('user_history_retired_key_versions');
     delete_option('user_history_crypto_current');
     delete_option('user_history_retention_days');
+    delete_option('user_history_collect_ip');
     delete_option('user_history_delete_data_on_uninstall');
 }
 

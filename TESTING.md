@@ -18,7 +18,7 @@ The suite checks that:
 
 - direct web access remains blocked;
 - no unauthenticated WordPress AJAX hooks are introduced;
-- the plugin does not add outbound HTTP calls;
+- first-party plugin code does not add outbound HTTP calls except the GitHub Release update check (vendored Plugin Update Checker; public repo; no token);
 - plugin activation creates its history table;
 - sensitive profile history is encrypted at rest and still renders correctly;
 - password changes store an event but no password value or hash;
@@ -48,7 +48,10 @@ The suite checks that:
 - nicename edits use `edit_users` / `edit_user` instead of hard-coded administrator role slugs;
 - new accounts get a unique nicename from display name or first+last that is never the username; existing nicenames stay unchanged;
 - the empty-history notice is built with text nodes instead of a jQuery `.html()` string;
-- plugin header Version matches the readme stable tag.
+- plugin header Version matches the readme stable tag;
+- GitHub Release tags 1.8.0 and v1.8.0 normalize to the same version;
+- the updater points at this public repo and never sets a GitHub token;
+- the Release workflow publishes a tag that matches Version: when main is bumped.
 
 These are regression tests for behavior that is already safe. They deliberately do not encode the known insecure behavior as “correct.”
 

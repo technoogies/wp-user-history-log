@@ -100,14 +100,35 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertStringContainsString('REMOTE_ADDR', $activity);
         $this->assertStringNotContainsString('HTTP_X_FORWARDED_FOR', $activity);
         $this->assertStringNotContainsString('innerHTML', $activity);
+
+        $updater = $this->updaterSource();
+        $this->assertStringContainsString("if (!defined('ABSPATH'))", $updater);
+        $this->assertStringNotContainsString('wp_ajax_nopriv_', $updater);
+        $this->assertStringNotContainsString('->setAuthentication(', $updater);
+        $this->assertStringNotContainsString('TRUNCATE', $updater);
+        $this->assertStringContainsString('https://github.com/technoogies/wp-user-history-log', $updater);
     }
 
     public function test_plugin_has_no_outbound_http_calls(): void
     {
-        $this->assertDoesNotMatchRegularExpression(
-            '/\b(?:wp_remote_(?:get|post|request)|curl_exec|file_get_contents\s*\(\s*[\'"]https?:)/',
-            $this->source
+        $http_pattern = '/\b(?:wp_remote_(?:get|post|request)|curl_exec|file_get_contents\s*\(\s*[\'"]https?:)/';
+        $this->assertDoesNotMatchRegularExpression($http_pattern, $this->source);
+
+        $root = dirname(__DIR__, 2);
+        $first_party = array_merge(
+            [$root . '/uninstall.php'],
+            glob($root . '/includes/*.php') ?: []
         );
+
+        foreach ($first_party as $file) {
+            $contents = file_get_contents($file);
+            $this->assertNotFalse($contents);
+            $this->assertDoesNotMatchRegularExpression(
+                $http_pattern,
+                $contents,
+                basename($file) . ' must not add outbound HTTP calls'
+            );
+        }
     }
 
     public function test_history_table_creation_requires_innodb(): void
@@ -258,6 +279,8 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertStringContainsString('placeNicenameField', $script);
         $this->assertStringContainsString('User_History_New_User_Nicename', $this->source);
         $this->assertStringContainsString('boot_new_user_nicename', $this->source);
+        $this->assertStringContainsString('User_History_Update_Checker', $this->source);
+        $this->assertStringContainsString('boot_update_checker', $this->source);
     }
 
     private function settingsSource(): string
@@ -314,5 +337,13 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertNotFalse($nicename);
 
         return $nicename;
+    }
+
+    private function updaterSource(): string
+    {
+        $updater = file_get_contents(dirname(__DIR__, 2) . '/includes/class-update-checker.php');
+        $this->assertNotFalse($updater);
+
+        return $updater;
     }
 }

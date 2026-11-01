@@ -20,6 +20,7 @@ A WordPress plugin that tracks changes made to user accounts and allows admins t
 - **Username Restrictions** - Optional registration username rules (off by default) with a Test Usernames tool
 - **Activity Log** - Optional site-wide log of content, media, comments, users, logins, extensions, and settings (off by default)
 - **Unique nicenames for new accounts** - New users get a URL-friendly nicename from display name or first+last; it is never the username and stays unique. Existing accounts are not rewritten
+- **GitHub updates** - The Plugins screen shows updates from this repo’s public GitHub Releases (no WordPress.org listing and no GitHub token)
 - **Privacy Export** - WordPress personal-data export includes decrypted account history; erasure keeps the audit trail unless an operator explicitly allows removal
 - **Multisite Compatible** - Works with WordPress multisite installations
 - **Members Plugin Compatible** - Works with the Members plugin for multiple role assignments
@@ -34,6 +35,26 @@ A WordPress plugin that tracks changes made to user accounts and allows admins t
 1. Download the plugin and upload to `/wp-content/plugins/user-history/`
 2. Activate through the 'Plugins' menu in WordPress
 3. Visit **User History → Settings** for retention, IP, and Activity Log options, or any user's edit page to see their Account History section
+
+After a GitHub Release exists, **Plugins** shows an update when that Release tag is newer than the installed `Version:` header. Click **Check for updates** next to the plugin if you just published a Release and do not want to wait for the next automatic check (about 12 hours).
+
+### Publishing a GitHub Release
+
+WordPress only sees an update after a **Release** exists for the new `Version:`. Merging a version bump to `main` runs the **Release** GitHub Action, which creates a tag that matches `Version:` (for example `1.9.0`) and publishes that Release.
+
+**One-time first Release:** this repo had no Releases when the updater shipped. The Action creates a Release when `Version:` on `main` is different from the previous commit. After this 1.9.0 change lands, wait a minute and open [Releases](https://github.com/technoogies/wp-user-history-log/releases). If `1.9.0` is missing, publish it once by hand:
+
+1. Open the repository on GitHub.
+2. Click **Releases** in the right column (or the tag icon).
+3. Click **Create a new release** (or **Draft a new release**).
+4. Click **Choose a tag**, type the plugin `Version:` exactly (example: `1.9.0`), then **Create new tag**. `v1.9.0` also works; the updater treats both as 1.9.0.
+5. Set the target to **main**.
+6. Set the release title to that same version.
+7. Paste the changelog for that version if you want it shown on **View details**.
+8. Leave **Set as a pre-release** unchecked (those are ignored).
+9. Click **Publish release**.
+
+Do this once for the current version if no Release exists. Later version bumps on `main` should publish themselves.
 
 ## Usage
 
@@ -216,6 +237,11 @@ New accounts only. The plugin slugs the nicename from display name, or from firs
 
 ## Changelog
 
+### 1.9.0
+- Show plugin updates in wp-admin from this repo’s public GitHub Releases
+- Vendored Plugin Update Checker so sites do not need Composer or a GitHub token
+- Added a GitHub Action that publishes a Release when `Version:` is bumped on `main`
+
 ### 1.8.0
 - Generated a unique nicename for new accounts from display name or first+last
 - Kept the nicename different from the username and added a suffix when that slug was already taken
@@ -321,3 +347,5 @@ GPL v2 or later - https://www.gnu.org/licenses/gpl-2.0.html
 ## Credits
 
 Developed by [WPZOOM](https://www.wpzoom.com)
+
+GitHub Release updates use [YahnisElsts Plugin Update Checker](https://github.com/YahnisElsts/plugin-update-checker) 5.7 (MIT), copied into `lib/plugin-update-checker`.

@@ -4,7 +4,7 @@
     "type": "wordpress-plugin",
     "license": "GPL-2.0-or-later",
     "scripts": {
-        "lint": "parallel-lint --exclude vendor .",
+        "lint": "parallel-lint --exclude vendor --exclude lib/plugin-update-checker .",
         "test": "phpunit --testsuite unit,integration",
         "test:unit": "phpunit --testsuite unit",
         "test:integration": "phpunit --testsuite integration",

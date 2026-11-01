@@ -4,7 +4,7 @@ Tags: user history, user log, audit log, change username, user tracking
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.8.0
+Stable tag: 1.9.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -29,6 +29,7 @@ User History tracks all changes made to user profiles and displays a complete hi
 * **Username Restrictions** - Optional registration username rules (off by default) with a Test Usernames tool
 * **Activity Log** - Optional site-wide log of content, media, comments, users, logins, extensions, and settings (off by default)
 * **Unique nicenames for new accounts** - New users get a nicename from display name or first+last; never the username; unique suffix if needed. Existing accounts are not rewritten
+* **GitHub updates** - Plugins screen shows updates from this repo's public GitHub Releases
 * **Privacy Export** - WordPress personal-data export includes account history; erasure keeps the audit trail unless explicitly allowed
 * **Multisite Compatible** - Works with WordPress multisite installations
 * **Members Plugin Compatible** - Works with the Members plugin for multiple role assignments
@@ -136,6 +137,10 @@ Open User History → Dashboard Access and turn on Restrict Dashboard Access. Th
 
 For new accounts only, the plugin slugs the nicename from the display name, or from first and last name on Users → Add New. It is never the same as the username. If that slug is already used, a suffix such as -2 is added. Existing accounts keep their current nicename. You can still edit Nicename under Nickname on the profile.
 
+= How do I get plugin updates? =
+
+This plugin is not listed on WordPress.org. After a GitHub Release is published for a newer Version, the Plugins screen shows the update. Click Check for updates next to the plugin if you just published a Release. No GitHub token is required. The Release tag should match Version: (1.9.0 or v1.9.0).
+
 = How do I restrict registration usernames? =
 
 Open User History → Username Restrictions and turn the feature on. It stays off until you do. Block exact names or fragments, optionally disallow spaces, and use Test Usernames to see the same reasons. Existing accounts are never renamed. Users → Add New and Change Username bypass the rules unless you also apply them to administrators. Restrict Usernames settings are imported once if present; the switch is not turned on automatically.
@@ -147,6 +152,11 @@ Open User History → Username Restrictions and turn the feature on. It stays of
 3. Search results showing users found by previous email/username
 
 == Changelog ==
+
+= 1.9.0 =
+* Show plugin updates in wp-admin from this repo's public GitHub Releases
+* Vendored Plugin Update Checker so sites do not need Composer or a GitHub token
+* Added a GitHub Action that publishes a Release when Version: is bumped on main
 
 = 1.8.0 =
 * Generated a unique nicename for new accounts from display name or first+last
@@ -247,6 +257,9 @@ Open User History → Username Restrictions and turn the feature on. It stays of
 * Account History display on user edit page
 
 == Upgrade Notice ==
+
+= 1.9.0 =
+Adds GitHub Release updates on the Plugins screen. After this version is published as a GitHub Release, newer Releases appear as normal WordPress plugin updates.
 
 = 1.8.0 =
 New accounts get a unique nicename from display name or first+last. It is never the username. Existing accounts are not changed.

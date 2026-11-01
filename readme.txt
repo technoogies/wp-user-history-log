@@ -4,7 +4,7 @@ Tags: user history, user log, audit log, change username, user tracking
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.4.0
+Stable tag: 1.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -25,6 +25,7 @@ User History tracks all changes made to user profiles and displays a complete hi
 * **User History Settings** - Admin menu after Users with retention, IP collection, and Clear All Logs
 * **Lock Accounts** - Lock a user to sign them out and block logins; one-time Lock User Account migration
 * **Login and session monitoring** - Optional login recording (off by default) and a Sessions tab with Log Out Everywhere
+* **Dashboard Access** - Optional /wp-admin restriction (off by default). Enabling requires manage_user_history and manage_options
 * **Privacy Export** - WordPress personal-data export includes account history; erasure keeps the audit trail unless explicitly allowed
 * **Multisite Compatible** - Works with WordPress multisite installations
 * **Members Plugin Compatible** - Works with the Members plugin for multiple role assignments
@@ -124,6 +125,10 @@ On activation or upgrade, users with baba_user_locked set to yes are copied to u
 
 Turn on Record logins under User History → Settings. It stays off until you do. Failed logins are stored only for existing accounts. Passwords are never stored. Account History → Sessions is always available to people who can edit that user.
 
+= How do I restrict the dashboard? =
+
+Open User History → Dashboard Access and turn on Restrict Dashboard Access. This stays off until you do. Enabling it requires manage_user_history and manage_options. A subscriber is redirected; administrators are not. Allow profile keeps profile.php reachable. AJAX stays unlocked unless you check that box. Remove Dashboard Access settings are imported once if present; the switch is not turned on automatically.
+
 == Screenshots ==
 
 1. Account History section on the user edit page
@@ -131,6 +136,10 @@ Turn on Record logins under User History → Settings. It stays off until you do
 3. Search results showing users found by previous email/username
 
 == Changelog ==
+
+= 1.5.0 =
+* Added optional /wp-admin restriction under User History → Dashboard Access (default off)
+* Imported Remove Dashboard Access settings once without auto-enabling the restriction
 
 = 1.4.0 =
 * Added optional login/logout/failed-login recording (default off) with encrypted, non-searchable user-agents
@@ -212,6 +221,9 @@ Turn on Record logins under User History → Settings. It stays off until you do
 * Account History display on user edit page
 
 == Upgrade Notice ==
+
+= 1.5.0 =
+Adds optional dashboard access control. It stays off until you enable it. Existing Remove Dashboard Access settings are imported once but the restriction is not turned on automatically.
 
 = 1.4.0 =
 Adds optional login recording (off by default) and a Sessions tab. Existing sites do not start logging logins until you turn the setting on.

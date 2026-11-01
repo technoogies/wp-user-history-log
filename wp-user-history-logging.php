@@ -4,7 +4,7 @@
  * Plugin Name: WP User History Log
  * Plugin URI: https://github.com/technoogies/wp-user-history-log
  * Description: Tracks changes made to user accounts (name, email, username, nicename, etc.) Adds NiceName edit field and displays a history log on the user edit page.
- * Version: 1.4.0
+ * Version: 1.5.0
  * Author: Technoogies / gpt 5.1 codex | from WPZOOM user-history
  * Author URI: https://technoogies.com
  * License: GPL v2 or later
@@ -170,6 +170,7 @@ class User_History {
         $this->grant_history_management_capability_on_activation();
         $this->maybe_migrate_encryption();
         $this->boot_lock_feature();
+        $this->boot_dashboard_access();
         if ($this->limit_existing_search_tokens()) {
             update_option('user_history_version', USER_HISTORY_VERSION);
         }
@@ -262,6 +263,7 @@ class User_History {
         $this->load_settings();
         $this->boot_lock_feature();
         $this->boot_login_tracker();
+        $this->boot_dashboard_access();
     }
 
     /**
@@ -270,6 +272,7 @@ class User_History {
     private function maybe_upgrade() {
         $this->grant_history_management_capability();
         $this->boot_lock_feature();
+        $this->boot_dashboard_access();
         $current_version = get_option('user_history_version', '0');
 
         if (version_compare($current_version, USER_HISTORY_VERSION, '<')) {
@@ -872,7 +875,15 @@ class User_History {
 
     public function enqueue_admin_assets($hook) {
         $is_profile = in_array($hook, ['user-edit.php', 'profile.php'], true);
-        $is_settings = in_array($hook, ['toplevel_page_user-history', 'user-history_page_user-history-lock-accounts'], true);
+        $is_settings = in_array(
+            $hook,
+            [
+                'toplevel_page_user-history',
+                'user-history_page_user-history-lock-accounts',
+                'user-history_page_user-history-dashboard-access',
+            ],
+            true
+        );
         $is_users = ($hook === 'users.php');
 
         if (!$is_profile && !$is_settings && !$is_users) {
@@ -2091,6 +2102,7 @@ class User_History {
         require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-settings.php';
         require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-lock.php';
         require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-login-tracker.php';
+        require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-dashboard-access.php';
         User_History_Settings::get_instance();
     }
 
@@ -2102,6 +2114,11 @@ class User_History {
     private function boot_login_tracker() {
         require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-login-tracker.php';
         User_History_Login_Tracker::get_instance($this);
+    }
+
+    private function boot_dashboard_access() {
+        require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-dashboard-access.php';
+        User_History_Dashboard_Access::get_instance($this)->maybe_import_rda_settings();
     }
 
     private function get_retention_days() {
@@ -3180,6 +3197,7 @@ class User_History {
 require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-settings.php';
 require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-lock.php';
 require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-login-tracker.php';
+require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-dashboard-access.php';
 
 // Initialize the plugin
 User_History::get_instance();

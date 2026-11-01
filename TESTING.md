@@ -42,6 +42,7 @@ The suite checks that:
 - Settings retention defaults to 0, IP collection honors the Settings option after the constant, and Clear All Logs requires manage_user_history and a real transaction;
 - account lock requires edit_users and edit_user, refuses self-lock and multisite super-admin lock, blocks login and application passwords, and migrates baba_user_locked once;
 - login recording stays off by default, logs only existing-account failures, never stores passwords, encrypts non-searchable user-agents, follows collect_ip, and Log Out Everywhere requires edit_users and edit_user;
+- dashboard access stays off by default, does not auto-enable when Remove Dashboard Access is present, requires manage_user_history and manage_options to enable, keeps AJAX unlocked unless opted in, and matches allowlist wildcards without treating them as registered admin pages;
 - nicename edits use `edit_users` / `edit_user` instead of hard-coded administrator role slugs;
 - the empty-history notice is built with text nodes instead of a jQuery `.html()` string;
 - plugin header Version matches the readme stable tag.

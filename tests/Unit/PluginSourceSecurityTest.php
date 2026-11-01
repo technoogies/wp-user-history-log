@@ -48,6 +48,18 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertStringContainsString("get_option(self::OPTION_KEY, '0')", $login);
         $this->assertStringContainsString('current_operator_can_destroy_sessions', $login);
         $this->assertStringContainsString('parse_user_agent', $login);
+
+        $dashboard = $this->dashboardSource();
+        $this->assertStringNotContainsString('wp_ajax_nopriv_', $dashboard);
+        $this->assertStringNotContainsString('ipinfo.io', $dashboard);
+        $this->assertStringNotContainsString('TRUNCATE', $dashboard);
+        $this->assertStringNotContainsString('is_plugin_active', $dashboard);
+        $this->assertStringContainsString("get_option(self::OPTION_ENABLED, '0')", $dashboard);
+        $this->assertStringContainsString('current_operator_can_enable', $dashboard);
+        $this->assertStringContainsString("current_user_can('manage_options')", $dashboard);
+        $this->assertStringContainsString('maybe_import_rda_settings', $dashboard);
+        $this->assertStringContainsString('should_restrict_ajax_request', $dashboard);
+        $this->assertStringContainsString('request_matches_allowlist', $dashboard);
     }
 
     public function test_plugin_has_no_outbound_http_calls(): void
@@ -108,6 +120,7 @@ final class PluginSourceSecurityTest extends TestCase
         );
         $this->assertStringNotContainsString('TRUNCATE', $settings);
         $this->assertStringContainsString("MENU_SLUG = 'user-history'", $settings);
+        $this->assertStringContainsString('User_History_Dashboard_Access::MENU_SLUG', $settings);
         $this->assertStringContainsString('CLEAR_HISTORY_CAPABILITY', $settings);
         $this->assertStringContainsString('0 means keep history forever', $settings);
         $this->assertStringContainsString("get_option('user_history_collect_ip', '1')", $settings);
@@ -223,5 +236,13 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertNotFalse($login);
 
         return $login;
+    }
+
+    private function dashboardSource(): string
+    {
+        $dashboard = file_get_contents(dirname(__DIR__, 2) . '/includes/class-dashboard-access.php');
+        $this->assertNotFalse($dashboard);
+
+        return $dashboard;
     }
 }

@@ -16,6 +16,7 @@ A WordPress plugin that tracks changes made to user accounts and allows admins t
 - **User History Settings** - A User History admin menu (after Users) with retention, IP collection, and Clear All Logs
 - **Lock Accounts** - Lock a user to sign them out and block logins; migrate existing Lock User Account flags once
 - **Login and session monitoring** - Optional login/logout/failed-login history (off by default) and a Sessions tab with Log Out Everywhere
+- **Dashboard Access** - Optional `/wp-admin` restriction (off by default). Enabling it requires `manage_user_history` and `manage_options`
 - **Privacy Export** - WordPress personal-data export includes decrypted account history; erasure keeps the audit trail unless an operator explicitly allows removal
 - **Multisite Compatible** - Works with WordPress multisite installations
 - **Members Plugin Compatible** - Works with the Members plugin for multiple role assignments
@@ -185,7 +186,17 @@ Accounts already locked by the Lock User Account plugin (`baba_user_locked = yes
 
 The **Sessions** tab is always available to people who can edit that user. **Log Out Everywhere** requires `edit_users` and `edit_user`. Confirming it on your own account warns that you will be signed out too.
 
+### Dashboard access
+
+**User History → Dashboard Access** is off until an operator with `manage_user_history` and `manage_options` turns it on. Restricted users are redirected (homepage by default). Profile access stays available unless you uncheck it. AJAX stays unlocked by default. An allowlist can keep specific admin URLs reachable (`admin.php?page=example-*` matches those pages only).
+
+If Remove Dashboard Access options exist (`rda_*`), they are copied once. The restriction stays off even when that plugin is still active.
+
 ## Changelog
+
+### 1.5.0
+- Added optional `/wp-admin` restriction under User History → Dashboard Access (default off)
+- Imported Remove Dashboard Access settings once without auto-enabling the restriction
 
 ### 1.4.0
 - Added optional login/logout/failed-login recording (default off) with encrypted, non-searchable user-agents

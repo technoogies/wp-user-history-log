@@ -120,6 +120,17 @@ class User_History_Settings {
             ]
         );
 
+        register_setting(
+            self::OPTION_GROUP,
+            User_History_Login_Tracker::OPTION_KEY,
+            [
+                'type'              => 'string',
+                'sanitize_callback' => [$this, 'sanitize_login_tracking'],
+                'default'           => '0',
+                'show_in_rest'      => false,
+            ]
+        );
+
         add_settings_section(
             'user_history_privacy',
             __('Privacy', 'user-history'),
@@ -131,6 +142,14 @@ class User_History_Settings {
             'user_history_collect_ip',
             __('Record IP addresses', 'user-history'),
             [$this, 'render_collect_ip_field'],
+            self::MENU_SLUG,
+            'user_history_privacy'
+        );
+
+        add_settings_field(
+            User_History_Login_Tracker::OPTION_KEY,
+            __('Record logins', 'user-history'),
+            [$this, 'render_login_tracking_field'],
             self::MENU_SLUG,
             'user_history_privacy'
         );
@@ -164,6 +183,14 @@ class User_History_Settings {
      * @return string '1' or '0'
      */
     public function sanitize_collect_ip($value) {
+        return $this->option_flag_is_enabled($value) ? '1' : '0';
+    }
+
+    /**
+     * @param mixed $value Raw submitted value.
+     * @return string '1' or '0'. Default stays off.
+     */
+    public function sanitize_login_tracking($value) {
         return $this->option_flag_is_enabled($value) ? '1' : '0';
     }
 
@@ -210,6 +237,24 @@ class User_History_Settings {
         </label>
         <p class="description">
             <?php esc_html_e('On by default. Uncheck to stop storing operator IPs in the encrypted snapshot. You can still override this with USER_HISTORY_COLLECT_IP or the user_history_collect_ip filter.', 'user-history'); ?>
+            </p>
+        <?php
+    }
+
+    /**
+     * Login recording checkbox. Default off so an update does not fill the history table.
+     */
+    public function render_login_tracking_field() {
+        $option_on = $this->option_flag_is_enabled(get_option(User_History_Login_Tracker::OPTION_KEY, '0'));
+
+        ?>
+        <label>
+            <input type="hidden" name="<?php echo esc_attr(User_History_Login_Tracker::OPTION_KEY); ?>" value="0" />
+            <input type="checkbox" name="<?php echo esc_attr(User_History_Login_Tracker::OPTION_KEY); ?>" value="1" <?php checked($option_on); ?> />
+            <?php esc_html_e('Record login, logout, and failed-login events for existing accounts', 'user-history'); ?>
+        </label>
+        <p class="description">
+            <?php esc_html_e('Off by default. Failed logins are stored only when the typed username or email matches a real account. Passwords are never stored.', 'user-history'); ?>
         </p>
         <?php
     }

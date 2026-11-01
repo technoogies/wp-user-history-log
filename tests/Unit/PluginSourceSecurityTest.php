@@ -39,6 +39,15 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertStringNotContainsString('TRUNCATE', $lock);
         $this->assertStringContainsString("defined('WP_CLI') && WP_CLI", $lock);
         $this->assertStringContainsString('current_operator_can_lock_user', $lock);
+
+        $login = $this->loginSource();
+        $this->assertStringContainsString("wp_ajax_' . self::DESTROY_ACTION", $login);
+        $this->assertStringNotContainsString('wp_ajax_nopriv_', $login);
+        $this->assertStringNotContainsString('ipinfo.io', $login);
+        $this->assertStringNotContainsString('TRUNCATE', $login);
+        $this->assertStringContainsString("get_option(self::OPTION_KEY, '0')", $login);
+        $this->assertStringContainsString('current_operator_can_destroy_sessions', $login);
+        $this->assertStringContainsString('parse_user_agent', $login);
     }
 
     public function test_plugin_has_no_outbound_http_calls(): void
@@ -102,6 +111,11 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertStringContainsString('CLEAR_HISTORY_CAPABILITY', $settings);
         $this->assertStringContainsString('0 means keep history forever', $settings);
         $this->assertStringContainsString("get_option('user_history_collect_ip', '1')", $settings);
+        $this->assertStringContainsString("get_option(User_History_Login_Tracker::OPTION_KEY, '0')", $settings);
+        $this->assertDoesNotMatchRegularExpression(
+            "/user_history_login_tracking_enabled',\s*'1'/",
+            $settings
+        );
     }
 
     public function test_uninstall_does_not_wipe_history_by_default(): void
@@ -182,6 +196,9 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertStringContainsString('user_history_clear_all_logs', $script);
         $this->assertStringContainsString('placeNicenameField', $script);
         $this->assertStringContainsString('initLockToggle', $script);
+        $this->assertStringContainsString('initHistoryTabs', $script);
+        $this->assertStringContainsString('initDestroySessions', $script);
+        $this->assertStringContainsString('placeNicenameField', $script);
     }
 
     private function settingsSource(): string
@@ -198,5 +215,13 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertNotFalse($lock);
 
         return $lock;
+    }
+
+    private function loginSource(): string
+    {
+        $login = file_get_contents(dirname(__DIR__, 2) . '/includes/class-login-tracker.php');
+        $this->assertNotFalse($login);
+
+        return $login;
     }
 }

@@ -15,6 +15,7 @@ A WordPress plugin that tracks changes made to user accounts and allows admins t
 - **Clear History** - Operators with the dedicated `manage_user_history` capability can clear a user's history log
 - **User History Settings** - A User History admin menu (after Users) with retention, IP collection, and Clear All Logs
 - **Lock Accounts** - Lock a user to sign them out and block logins; migrate existing Lock User Account flags once
+- **Login and session monitoring** - Optional login/logout/failed-login history (off by default) and a Sessions tab with Log Out Everywhere
 - **Privacy Export** - WordPress personal-data export includes decrypted account history; erasure keeps the audit trail unless an operator explicitly allows removal
 - **Multisite Compatible** - Works with WordPress multisite installations
 - **Members Plugin Compatible** - Works with the Members plugin for multiple role assignments
@@ -178,7 +179,17 @@ On a user edit page, use **Lock Account**. That user is signed out immediately a
 
 Accounts already locked by the Lock User Account plugin (`baba_user_locked = yes`) are copied once on activation or upgrade. WP-CLI can still act as a locked user so they can be unlocked from the command line.
 
+### Logins and sessions
+
+**User History → Settings** has **Record logins** off by default. When you turn it on, Account History → **Logins** shows login, logout, and failed-login rows (failed attempts only when the typed username or email matches a real account). Passwords are never stored. The browser/OS label is parsed locally. IP follows the existing Record IP addresses setting.
+
+The **Sessions** tab is always available to people who can edit that user. **Log Out Everywhere** requires `edit_users` and `edit_user`. Confirming it on your own account warns that you will be signed out too.
+
 ## Changelog
+
+### 1.4.0
+- Added optional login/logout/failed-login recording (default off) with encrypted, non-searchable user-agents
+- Added Account History Logins and Sessions tabs, plus Log Out Everywhere
 
 ### 1.3.0
 - Added account lock/unlock with session termination, login and application-password blocking, and a Locked view on All Users

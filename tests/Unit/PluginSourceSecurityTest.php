@@ -25,6 +25,7 @@ final class PluginSourceSecurityTest extends TestCase
     {
         $this->assertStringContainsString('wp_ajax_load_more_user_history', $this->source);
         $this->assertStringContainsString('wp_ajax_user_history_change_username', $this->source);
+        $this->assertStringContainsString('get_admin_username_error', $this->source);
         $this->assertStringContainsString('wp_ajax_clear_user_history', $this->source);
         $this->assertStringNotContainsString('wp_ajax_nopriv_', $this->source);
 
@@ -60,6 +61,19 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertStringContainsString('maybe_import_rda_settings', $dashboard);
         $this->assertStringContainsString('should_restrict_ajax_request', $dashboard);
         $this->assertStringContainsString('request_matches_allowlist', $dashboard);
+
+        $usernames = $this->usernameSource();
+        $this->assertStringContainsString("wp_ajax_' . self::TEST_ACTION", $usernames);
+        $this->assertStringNotContainsString('wp_ajax_nopriv_', $usernames);
+        $this->assertStringNotContainsString('ipinfo.io', $usernames);
+        $this->assertStringNotContainsString('TRUNCATE', $usernames);
+        $this->assertStringNotContainsString('is_plugin_active', $usernames);
+        $this->assertStringContainsString("get_option(self::OPTION_ENABLED, '0')", $usernames);
+        $this->assertStringContainsString("apply_filters('user_history_validate_username'", $usernames);
+        $this->assertStringContainsString('get_admin_username_error', $usernames);
+        $this->assertStringContainsString('maybe_import_restrict_usernames_settings', $usernames);
+        $this->assertStringContainsString('createTextNode', $usernames);
+        $this->assertStringNotContainsString('innerHTML', $usernames);
     }
 
     public function test_plugin_has_no_outbound_http_calls(): void
@@ -121,6 +135,7 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertStringNotContainsString('TRUNCATE', $settings);
         $this->assertStringContainsString("MENU_SLUG = 'user-history'", $settings);
         $this->assertStringContainsString('User_History_Dashboard_Access::MENU_SLUG', $settings);
+        $this->assertStringContainsString('User_History_Username_Restrictions::MENU_SLUG', $settings);
         $this->assertStringContainsString('CLEAR_HISTORY_CAPABILITY', $settings);
         $this->assertStringContainsString('0 means keep history forever', $settings);
         $this->assertStringContainsString("get_option('user_history_collect_ip', '1')", $settings);
@@ -244,5 +259,13 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertNotFalse($dashboard);
 
         return $dashboard;
+    }
+
+    private function usernameSource(): string
+    {
+        $usernames = file_get_contents(dirname(__DIR__, 2) . '/includes/class-username-restrictions.php');
+        $this->assertNotFalse($usernames);
+
+        return $usernames;
     }
 }

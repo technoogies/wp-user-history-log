@@ -4,7 +4,7 @@ Tags: user history, user log, audit log, change username, user tracking
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.5.0
+Stable tag: 1.6.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -26,6 +26,7 @@ User History tracks all changes made to user profiles and displays a complete hi
 * **Lock Accounts** - Lock a user to sign them out and block logins; one-time Lock User Account migration
 * **Login and session monitoring** - Optional login recording (off by default) and a Sessions tab with Log Out Everywhere
 * **Dashboard Access** - Optional /wp-admin restriction (off by default). Enabling requires manage_user_history and manage_options
+* **Username Restrictions** - Optional registration username rules (off by default) with a Test Usernames tool
 * **Privacy Export** - WordPress personal-data export includes account history; erasure keeps the audit trail unless explicitly allowed
 * **Multisite Compatible** - Works with WordPress multisite installations
 * **Members Plugin Compatible** - Works with the Members plugin for multiple role assignments
@@ -129,6 +130,10 @@ Turn on Record logins under User History → Settings. It stays off until you do
 
 Open User History → Dashboard Access and turn on Restrict Dashboard Access. This stays off until you do. Enabling it requires manage_user_history and manage_options. A subscriber is redirected; administrators are not. Allow profile keeps profile.php reachable. AJAX stays unlocked unless you check that box. Remove Dashboard Access settings are imported once if present; the switch is not turned on automatically.
 
+= How do I restrict registration usernames? =
+
+Open User History → Username Restrictions and turn the feature on. It stays off until you do. Block exact names or fragments, optionally disallow spaces, and use Test Usernames to see the same reasons. Existing accounts are never renamed. Users → Add New and Change Username bypass the rules unless you also apply them to administrators. Restrict Usernames settings are imported once if present; the switch is not turned on automatically.
+
 == Screenshots ==
 
 1. Account History section on the user edit page
@@ -136,6 +141,11 @@ Open User History → Dashboard Access and turn on Restrict Dashboard Access. Th
 3. Search results showing users found by previous email/username
 
 == Changelog ==
+
+= 1.6.0 =
+* Added optional registration username rules under User History → Username Restrictions (default off)
+* Added a Test Usernames tool and optional apply-to-admins checks for Add New and Change Username
+* Imported Restrict Usernames settings once without auto-enabling the rules
 
 = 1.5.0 =
 * Added optional /wp-admin restriction under User History → Dashboard Access (default off)
@@ -221,6 +231,9 @@ Open User History → Dashboard Access and turn on Restrict Dashboard Access. Th
 * Account History display on user edit page
 
 == Upgrade Notice ==
+
+= 1.6.0 =
+Adds optional registration username rules. They stay off until you enable them. Existing Restrict Usernames settings are imported once but the rules are not turned on automatically.
 
 = 1.5.0 =
 Adds optional dashboard access control. It stays off until you enable it. Existing Remove Dashboard Access settings are imported once but the restriction is not turned on automatically.

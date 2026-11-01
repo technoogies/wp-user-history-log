@@ -824,7 +824,7 @@ class User_History_Username_Restrictions {
     }
 
     /**
-     * Test Usernames tool. Uses text nodes, not innerHTML.
+     * Test Usernames tool. Uses text nodes, not an HTML sink.
      */
     private function render_username_test_tool() {
         ?>

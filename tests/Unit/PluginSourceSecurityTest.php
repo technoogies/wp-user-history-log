@@ -31,6 +31,14 @@ final class PluginSourceSecurityTest extends TestCase
         $settings = $this->settingsSource();
         $this->assertStringContainsString('wp_ajax_user_history_clear_all_logs', $settings);
         $this->assertStringNotContainsString('wp_ajax_nopriv_', $settings);
+
+        $lock = $this->lockSource();
+        $this->assertStringContainsString("wp_ajax_' . self::AJAX_ACTION", $lock);
+        $this->assertStringNotContainsString('wp_ajax_nopriv_', $lock);
+        $this->assertStringNotContainsString('ipinfo.io', $lock);
+        $this->assertStringNotContainsString('TRUNCATE', $lock);
+        $this->assertStringContainsString("defined('WP_CLI') && WP_CLI", $lock);
+        $this->assertStringContainsString('current_operator_can_lock_user', $lock);
     }
 
     public function test_plugin_has_no_outbound_http_calls(): void
@@ -172,6 +180,8 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertStringContainsString('.user-history-nicename-wrap:not(.user-history-nicename-placed)', $styles);
         $this->assertStringContainsString('initClearAllLogs', $script);
         $this->assertStringContainsString('user_history_clear_all_logs', $script);
+        $this->assertStringContainsString('placeNicenameField', $script);
+        $this->assertStringContainsString('initLockToggle', $script);
     }
 
     private function settingsSource(): string
@@ -180,5 +190,13 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertNotFalse($settings);
 
         return $settings;
+    }
+
+    private function lockSource(): string
+    {
+        $lock = file_get_contents(dirname(__DIR__, 2) . '/includes/class-lock.php');
+        $this->assertNotFalse($lock);
+
+        return $lock;
     }
 }

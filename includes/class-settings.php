@@ -55,7 +55,7 @@ class User_History_Settings {
     }
 
     /**
-     * Register the User History top-level menu. Settings is the only page for now.
+     * Register the User History top-level menu. Settings stays last.
      */
     public function register_menu() {
         $capability = $this->settings_capability();
@@ -73,6 +73,7 @@ class User_History_Settings {
             71
         );
 
+        // Same slug as the parent so WordPress does not copy a duplicate first item.
         add_submenu_page(
             self::MENU_SLUG,
             __('User History Settings', 'user-history'),
@@ -80,6 +81,16 @@ class User_History_Settings {
             $capability,
             self::MENU_SLUG,
             [$this, 'render_settings_page']
+        );
+
+        add_submenu_page(
+            self::MENU_SLUG,
+            __('Lock Accounts', 'user-history'),
+            __('Lock Accounts', 'user-history'),
+            $capability,
+            User_History_Lock::MENU_SLUG,
+            [User_History_Lock::get_instance(), 'render_settings_page'],
+            0
         );
     }
 

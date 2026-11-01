@@ -14,6 +14,7 @@ A WordPress plugin that tracks changes made to user accounts and allows admins t
 - **See Who Made Changes** - Each log entry shows whether the user changed their own profile or if an admin made the change
 - **Clear History** - Operators with the dedicated `manage_user_history` capability can clear a user's history log
 - **User History Settings** - A User History admin menu (after Users) with retention, IP collection, and Clear All Logs
+- **Lock Accounts** - Lock a user to sign them out and block logins; migrate existing Lock User Account flags once
 - **Privacy Export** - WordPress personal-data export includes decrypted account history; erasure keeps the audit trail unless an operator explicitly allows removal
 - **Multisite Compatible** - Works with WordPress multisite installations
 - **Members Plugin Compatible** - Works with the Members plugin for multiple role assignments
@@ -169,7 +170,20 @@ The history log appears at the bottom of the user edit page, showing all tracked
 ### Change Username
 Click "Change" next to the username field to reveal an inline form for changing the username.
 
+### Locking an account
+
+On a user edit page, use **Lock Account**. That user is signed out immediately and cannot sign in until unlocked. You cannot lock yourself or a multisite super administrator. Lock and unlock require `edit_users` and `edit_user` on that account.
+
+**Users** shows a Locked badge, Lock / Unlock row actions, bulk actions, and a Locked view. **User History → Lock Accounts** holds the custom login message and a short list of locked users.
+
+Accounts already locked by the Lock User Account plugin (`baba_user_locked = yes`) are copied once on activation or upgrade. WP-CLI can still act as a locked user so they can be unlocked from the command line.
+
 ## Changelog
+
+### 1.3.0
+- Added account lock/unlock with session termination, login and application-password blocking, and a Locked view on All Users
+- Added User History → Lock Accounts for a custom lock message
+- Migrated Lock User Account plugin flags once (`baba_user_locked` → `user_history_locked`)
 
 ### 1.2.0
 - Added a User History admin menu after Users, with Settings as the only page

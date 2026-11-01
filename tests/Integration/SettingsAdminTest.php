@@ -121,7 +121,8 @@ final class SettingsAdminTest extends WP_Ajax_UnitTestCase
         $this->assertTrue(current_user_can(User_History::CLEAR_HISTORY_CAPABILITY));
         $this->assertNotFalse($this->findMenuSlug($menu, 'user-history'));
         $this->assertArrayHasKey('user-history', $submenu);
-        $this->assertSame('Settings', $submenu['user-history'][0][0]);
+        $submenu_titles = array_values(array_column($submenu['user-history'], 0));
+        $this->assertSame(['Lock Accounts', 'Settings'], $submenu_titles);
 
         $editor = self::factory()->user->create(['role' => 'editor']);
         $editor_user = get_userdata($editor);

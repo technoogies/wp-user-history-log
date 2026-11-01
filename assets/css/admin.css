@@ -270,3 +270,39 @@
 .user-history-clear-all-message.error {
     color: #b32d2e;
 }
+
+/* ==========================================================================
+   Account lock
+   ========================================================================== */
+
+.user-history-lock-badge.locked {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    background: #fcf0f1;
+    color: #b32d2e;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.user-history-lock-button {
+    color: #b32d2e;
+    border-color: #b32d2e;
+}
+
+.user-history-lock-message {
+    display: inline-block;
+    margin-left: 8px;
+}
+
+.user-history-lock-message.success {
+    color: #1e4620;
+}
+
+.user-history-lock-message.error {
+    color: #b32d2e;
+}
+
+.user-history-locked-user-list {
+    margin-top: 0;
+}

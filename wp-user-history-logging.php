@@ -4,7 +4,7 @@
  * Plugin Name: WP User History Log
  * Plugin URI: https://github.com/technoogies/wp-user-history-log
  * Description: Tracks changes made to user accounts (name, email, username, nicename, etc.) Adds NiceName edit field and displays a history log on the user edit page.
- * Version: 1.2.0
+ * Version: 1.3.0
  * Author: Technoogies / gpt 5.1 codex | from WPZOOM user-history
  * Author URI: https://technoogies.com
  * License: GPL v2 or later
@@ -168,6 +168,7 @@ class User_History {
         $this->create_table();
         $this->grant_history_management_capability_on_activation();
         $this->maybe_migrate_encryption();
+        $this->boot_lock_feature();
         if ($this->limit_existing_search_tokens()) {
             update_option('user_history_version', USER_HISTORY_VERSION);
         }
@@ -258,6 +259,7 @@ class User_History {
 
         $this->maybe_schedule_retention_prune();
         $this->load_settings();
+        $this->boot_lock_feature();
     }
 
     /**
@@ -265,6 +267,7 @@ class User_History {
      */
     private function maybe_upgrade() {
         $this->grant_history_management_capability();
+        $this->boot_lock_feature();
         $current_version = get_option('user_history_version', '0');
 
         if (version_compare($current_version, USER_HISTORY_VERSION, '<')) {
@@ -763,6 +766,15 @@ class User_History {
         return (int) $wpdb->insert_id;
     }
 
+    /**
+     * Public writer for other plugin modules (lock, later login/activity).
+     *
+     * @return int|false Insert ID or false.
+     */
+    public function record_change($user_id, $changed_by, $field_name, $field_label, $old_value, $new_value, $change_type = 'update', $context = []) {
+        return $this->log_change($user_id, $changed_by, $field_name, $field_label, $old_value, $new_value, $change_type, $context);
+    }
+
     public function get_user_history($user_id, $limit = 50, $offset = 0) {
         global $wpdb;
 
@@ -802,9 +814,10 @@ class User_History {
 
     public function enqueue_admin_assets($hook) {
         $is_profile = in_array($hook, ['user-edit.php', 'profile.php'], true);
-        $is_settings = ($hook === 'toplevel_page_user-history');
+        $is_settings = in_array($hook, ['toplevel_page_user-history', 'user-history_page_user-history-lock-accounts'], true);
+        $is_users = ($hook === 'users.php');
 
-        if (!$is_profile && !$is_settings) {
+        if (!$is_profile && !$is_settings && !$is_users) {
             return;
         }
 
@@ -831,6 +844,7 @@ class User_History {
             'changeUsernameNonce' => wp_create_nonce('user_history_change_username'),
             'clearHistoryNonce' => wp_create_nonce('user_history_clear'),
             'clearAllLogsNonce' => wp_create_nonce('user_history_clear_all_logs'),
+            'lockNonce' => wp_create_nonce('user_history_lock'),
             'userId'  => $user_id,
             'i18n'    => [
                 'change'        => __('Change', 'user-history'),
@@ -842,6 +856,11 @@ class User_History {
                 'clearing'      => __('Clearing...', 'user-history'),
                 'clearLog'      => __('Clear Log', 'user-history'),
                 'clearAllLogs'  => __('Clear All Logs', 'user-history'),
+                'confirmLock'   => __('Lock this account? They will be signed out immediately.', 'user-history'),
+                'confirmUnlock' => __('Unlock this account?', 'user-history'),
+                'locking'       => __('Working...', 'user-history'),
+                'lockAccount'   => __('Lock Account', 'user-history'),
+                'unlockAccount' => __('Unlock Account', 'user-history'),
                 'loading'       => __('Loading...', 'user-history'),
                 'loadMore'      => __('Load More', 'user-history'),
                 'emptyLog'      => __('No changes have been recorded yet.', 'user-history'),
@@ -1934,7 +1953,13 @@ class User_History {
 
     private function load_settings() {
         require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-settings.php';
+        require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-lock.php';
         User_History_Settings::get_instance();
+    }
+
+    private function boot_lock_feature() {
+        require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-lock.php';
+        User_History_Lock::get_instance($this)->maybe_migrate_lock_user_account();
     }
 
     private function get_retention_days() {
@@ -3011,6 +3036,7 @@ class User_History {
 }
 
 require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-settings.php';
+require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-lock.php';
 
 // Initialize the plugin
 User_History::get_instance();

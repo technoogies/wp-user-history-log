@@ -40,6 +40,7 @@ The suite checks that:
 - personal-data export returns decrypted history and the eraser retains records unless explicitly allowed;
 - operator IP collection stays on by default and can be disabled;
 - Settings retention defaults to 0, IP collection honors the Settings option after the constant, and Clear All Logs requires manage_user_history and a real transaction;
+- account lock requires edit_users and edit_user, refuses self-lock and multisite super-admin lock, blocks login and application passwords, and migrates baba_user_locked once;
 - nicename edits use `edit_users` / `edit_user` instead of hard-coded administrator role slugs;
 - the empty-history notice is built with text nodes instead of a jQuery `.html()` string;
 - plugin header Version matches the readme stable tag.

@@ -4,7 +4,7 @@ Tags: user history, user log, audit log, change username, user tracking
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.6.0
+Stable tag: 1.7.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -27,6 +27,7 @@ User History tracks all changes made to user profiles and displays a complete hi
 * **Login and session monitoring** - Optional login recording (off by default) and a Sessions tab with Log Out Everywhere
 * **Dashboard Access** - Optional /wp-admin restriction (off by default). Enabling requires manage_user_history and manage_options
 * **Username Restrictions** - Optional registration username rules (off by default) with a Test Usernames tool
+* **Activity Log** - Optional site-wide log of content, media, comments, users, logins, extensions, and settings (off by default)
 * **Privacy Export** - WordPress personal-data export includes account history; erasure keeps the audit trail unless explicitly allowed
 * **Multisite Compatible** - Works with WordPress multisite installations
 * **Members Plugin Compatible** - Works with the Members plugin for multiple role assignments
@@ -42,7 +43,7 @@ User History tracks all changes made to user profiles and displays a complete hi
 
 1. Upload the `user-history` folder to the `/wp-content/plugins/` directory
 2. Activate the plugin through the 'Plugins' menu in WordPress
-3. Visit User History → Settings for retention and IP options, or any user's edit page to see their Account History section
+3. Visit User History → Settings for retention, IP, and Activity Log options, or any user's edit page to see their Account History section
 
 == Frequently Asked Questions ==
 
@@ -142,6 +143,11 @@ Open User History → Username Restrictions and turn the feature on. It stays of
 
 == Changelog ==
 
+= 1.7.0 =
+* Added an optional site-wide Activity Log (default off) under User History → Activity Log
+* Reused the existing daily retention hook to prune both account history and activity rows; no second cron and no TRUNCATE
+* Clear Activity Log requires manage_user_history and a real transaction
+
 = 1.6.0 =
 * Added optional registration username rules under User History → Username Restrictions (default off)
 * Added a Test Usernames tool and optional apply-to-admins checks for Add New and Change Username
@@ -231,6 +237,9 @@ Open User History → Username Restrictions and turn the feature on. It stays of
 * Account History display on user edit page
 
 == Upgrade Notice ==
+
+= 1.7.0 =
+Adds an optional site-wide Activity Log. It stays off until you enable it. Retention still defaults to 0 (keep forever) and the existing daily hook prunes both tables.
 
 = 1.6.0 =
 Adds optional registration username rules. They stay off until you enable them. Existing Restrict Usernames settings are imported once but the rules are not turned on automatically.

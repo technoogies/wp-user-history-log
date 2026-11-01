@@ -322,3 +322,81 @@
 .user-history-locked-user-list {
     margin-top: 0;
 }
+
+/* ==========================================================================
+   Activity Log
+   ========================================================================== */
+
+.user-history-clear-activity {
+    color: #b32d2e;
+    border-color: #b32d2e;
+}
+
+.user-history-activity-avatar {
+    float: left;
+    margin: 2px 8px 0 0;
+}
+
+.user-history-activity-user {
+    display: inline-block;
+    line-height: 1.3;
+}
+
+.user-history-activity-login {
+    color: #646970;
+}
+
+.user-history-activity-ago,
+.user-history-activity-via {
+    color: #646970;
+    font-size: 12px;
+}
+
+.user-history-activity-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    background: #f0f0f1;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.user-history-activity-badge-content {
+    background: #e7f3ff;
+    color: #0a4b78;
+}
+
+.user-history-activity-badge-media {
+    background: #f3e8ff;
+    color: #5b2a86;
+}
+
+.user-history-activity-badge-comments {
+    background: #fff4e5;
+    color: #8a5700;
+}
+
+.user-history-activity-badge-users,
+.user-history-activity-badge-logins {
+    background: #edfaef;
+    color: #1e4620;
+}
+
+.user-history-activity-badge-extensions {
+    background: #fcf0f1;
+    color: #8a2424;
+}
+
+.user-history-activity-badge-settings {
+    background: #f0f0f1;
+    color: #2c3338;
+}
+
+.user-history-activity-diff del {
+    color: #b32d2e;
+}
+
+.user-history-activity-diff ins {
+    color: #1e4620;
+    text-decoration: none;
+}

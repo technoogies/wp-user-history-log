@@ -18,6 +18,7 @@ A WordPress plugin that tracks changes made to user accounts and allows admins t
 - **Login and session monitoring** - Optional login/logout/failed-login history (off by default) and a Sessions tab with Log Out Everywhere
 - **Dashboard Access** - Optional `/wp-admin` restriction (off by default). Enabling it requires `manage_user_history` and `manage_options`
 - **Username Restrictions** - Optional registration username rules (off by default) with a Test Usernames tool
+- **Activity Log** - Optional site-wide log of content, media, comments, users, logins, extensions, and settings (off by default)
 - **Privacy Export** - WordPress personal-data export includes decrypted account history; erasure keeps the audit trail unless an operator explicitly allows removal
 - **Multisite Compatible** - Works with WordPress multisite installations
 - **Members Plugin Compatible** - Works with the Members plugin for multiple role assignments
@@ -31,7 +32,7 @@ A WordPress plugin that tracks changes made to user accounts and allows admins t
 
 1. Download the plugin and upload to `/wp-content/plugins/user-history/`
 2. Activate through the 'Plugins' menu in WordPress
-3. Visit **User History → Settings** for retention and IP options, or any user's edit page to see their Account History section
+3. Visit **User History → Settings** for retention, IP, and Activity Log options, or any user's edit page to see their Account History section
 
 ## Usage
 
@@ -75,11 +76,15 @@ Open **User History → Settings** (also linked from the Plugins screen). The me
 
 ### Retention
 
-Automatic retention pruning is off by default. The Settings field shows **0** (keep forever / cleanup off). Existing history is kept until an operator types a positive day count in Settings or sets the `user_history_retention_days` option or filter. When enabled, the existing daily hook removes only rows older than that window and writes a maintenance audit event for each affected user. A failed delete, maintenance insert, or commit leaves the previous history unchanged. Settings does not add a second cron.
+Automatic retention pruning is off by default. The Settings field shows **0** (keep forever / cleanup off). Existing history and activity rows are kept until an operator types a positive day count in Settings or sets the `user_history_retention_days` option or filter. When enabled, the existing daily hook removes only rows older than that window from both the account-history table and the activity log, and writes a maintenance audit event. A failed delete, maintenance insert, or commit leaves the previous rows unchanged. Settings does not add a second cron.
 
 ### Clear All Logs
 
-On **User History → Settings**, operators with `manage_user_history` can clear every history row on the site. The action asks for confirmation, runs in a real database transaction, deletes rows (it does not truncate the table), and writes a maintenance event on the operator's account history. If a transaction cannot start, nothing is changed.
+On **User History → Settings**, operators with `manage_user_history` can clear every history row on the site. The action asks for confirmation, runs in a real database transaction, deletes rows (it does not truncate the table), and writes a maintenance event on the operator's account history. If a transaction cannot start, nothing is changed. Clear All Logs does not empty the Activity Log; that has its own transactional Clear Activity Log button.
+
+### Activity Log
+
+Open **User History → Activity Log**. The page and the enable checkbox require `manage_user_history`. The log stays **off** after an update. When enabled, choose event groups (Content, Media, Comments, Users, Logins, Extensions, Settings). Descriptions are built at display time from a stored action key. IPs follow the same Settings / `USER_HISTORY_COLLECT_IP` rules as account history and use `REMOTE_ADDR` only. Clear Activity Log needs `manage_user_history`, uses a real transaction, deletes rows (it does not truncate), and writes a maintenance event.
 
 ### Personal Data and Uninstall
 
@@ -163,6 +168,11 @@ add_filter('user_history_erase_personal_data', '__return_true');
 add_filter('user_history_collect_ip', function ($collect) {
     return (bool) $collect;
 });
+
+// Filter an activity log entry before it is saved. Return false to skip.
+add_filter('user_history_activity_log_entry', function ($entry) {
+    return $entry;
+});
 ```
 
 ## Screenshots
@@ -200,6 +210,11 @@ If Remove Dashboard Access options exist (`rda_*`), they are copied once. The re
 Administrators bypass the rules on **Users → Add New** and **Change Username** unless **Also apply the rules to usernames chosen by administrators** is on. The `user_history_validate_username` filter can add a custom rule. Restrict Usernames settings (`c2c_restrict_usernames`) are imported once; the switch stays off.
 
 ## Changelog
+
+### 1.7.0
+- Added an optional site-wide Activity Log (default off) under User History → Activity Log
+- Reused the existing daily retention hook to prune both account history and activity rows; no second cron and no TRUNCATE
+- Clear Activity Log requires manage_user_history and a real transaction
 
 ### 1.6.0
 - Added optional registration username rules under User History → Username Restrictions (default off)

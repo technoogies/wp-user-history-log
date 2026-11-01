@@ -74,6 +74,20 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertStringContainsString('maybe_import_restrict_usernames_settings', $usernames);
         $this->assertStringContainsString('createTextNode', $usernames);
         $this->assertStringNotContainsString('innerHTML', $usernames);
+
+        $activity = $this->activitySource();
+        $this->assertStringContainsString("wp_ajax_' . self::CLEAR_ACTION", $activity);
+        $this->assertStringNotContainsString('wp_ajax_nopriv_', $activity);
+        $this->assertStringNotContainsString('ipinfo.io', $activity);
+        $this->assertStringNotContainsString('TRUNCATE', $activity);
+        $this->assertStringContainsString("get_option(self::OPTION_ENABLED, '0')", $activity);
+        $this->assertStringContainsString('ENGINE=InnoDB', $activity);
+        $this->assertStringContainsString('user_history_user_locked', $activity);
+        $this->assertStringContainsString('user_history_user_unlocked', $activity);
+        $this->assertStringContainsString('user_history_username_changed', $activity);
+        $this->assertStringContainsString('REMOTE_ADDR', $activity);
+        $this->assertStringNotContainsString('HTTP_X_FORWARDED_FOR', $activity);
+        $this->assertStringNotContainsString('innerHTML', $activity);
     }
 
     public function test_plugin_has_no_outbound_http_calls(): void
@@ -134,10 +148,11 @@ final class PluginSourceSecurityTest extends TestCase
         );
         $this->assertStringNotContainsString('TRUNCATE', $settings);
         $this->assertStringContainsString("MENU_SLUG = 'user-history'", $settings);
+        $this->assertStringContainsString('User_History_Activity_Log::MENU_SLUG', $settings);
         $this->assertStringContainsString('User_History_Dashboard_Access::MENU_SLUG', $settings);
         $this->assertStringContainsString('User_History_Username_Restrictions::MENU_SLUG', $settings);
         $this->assertStringContainsString('CLEAR_HISTORY_CAPABILITY', $settings);
-        $this->assertStringContainsString('0 means keep history forever', $settings);
+        $this->assertStringContainsString('0 means keep history and activity rows forever', $settings);
         $this->assertStringContainsString("get_option('user_history_collect_ip', '1')", $settings);
         $this->assertStringContainsString("get_option(User_History_Login_Tracker::OPTION_KEY, '0')", $settings);
         $this->assertDoesNotMatchRegularExpression(
@@ -221,7 +236,9 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertStringContainsString('insertAfter', $script);
         $this->assertStringContainsString('.user-history-nicename-wrap:not(.user-history-nicename-placed)', $styles);
         $this->assertStringContainsString('initClearAllLogs', $script);
+        $this->assertStringContainsString('initClearActivityLog', $script);
         $this->assertStringContainsString('user_history_clear_all_logs', $script);
+        $this->assertStringContainsString('user_history_clear_activity_log', $script);
         $this->assertStringContainsString('placeNicenameField', $script);
         $this->assertStringContainsString('initLockToggle', $script);
         $this->assertStringContainsString('initHistoryTabs', $script);
@@ -267,5 +284,13 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertNotFalse($usernames);
 
         return $usernames;
+    }
+
+    private function activitySource(): string
+    {
+        $activity = file_get_contents(dirname(__DIR__, 2) . '/includes/class-activity-log.php');
+        $this->assertNotFalse($activity);
+
+        return $activity;
     }
 }

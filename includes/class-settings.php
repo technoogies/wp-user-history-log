@@ -85,12 +85,22 @@ class User_History_Settings {
 
         add_submenu_page(
             self::MENU_SLUG,
+            __('Activity Log', 'user-history'),
+            __('Activity Log', 'user-history'),
+            $capability,
+            User_History_Activity_Log::MENU_SLUG,
+            [User_History_Activity_Log::get_instance(), 'render_activity_log_page'],
+            0
+        );
+
+        add_submenu_page(
+            self::MENU_SLUG,
             __('Lock Accounts', 'user-history'),
             __('Lock Accounts', 'user-history'),
             $capability,
             User_History_Lock::MENU_SLUG,
             [User_History_Lock::get_instance(), 'render_settings_page'],
-            0
+            1
         );
 
         add_submenu_page(
@@ -100,7 +110,7 @@ class User_History_Settings {
             $capability,
             User_History_Dashboard_Access::MENU_SLUG,
             [User_History_Dashboard_Access::get_instance(), 'render_settings_page'],
-            1
+            2
         );
 
         add_submenu_page(
@@ -110,7 +120,7 @@ class User_History_Settings {
             $capability,
             User_History_Username_Restrictions::MENU_SLUG,
             [User_History_Username_Restrictions::get_instance(), 'render_settings_page'],
-            2
+            3
         );
     }
 
@@ -225,7 +235,7 @@ class User_History_Settings {
      * Settings intro for the retention section.
      */
     public function render_retention_section() {
-        echo '<p>' . esc_html__('Automatic cleanup uses the existing daily hook. This screen does not add a second schedule.', 'user-history') . '</p>';
+        echo '<p>' . esc_html__('Automatic cleanup uses the existing daily hook for account history and the activity log. This screen does not add a second schedule.', 'user-history') . '</p>';
     }
 
     /**
@@ -296,7 +306,7 @@ class User_History_Settings {
             value="<?php echo esc_attr((string) $days); ?>"
         />
         <p class="description">
-            <?php esc_html_e('0 means keep history forever. Type 1 or more days to turn on daily cleanup. This plugin will not delete old rows unless you opt in.', 'user-history'); ?>
+            <?php esc_html_e('0 means keep history and activity rows forever. Type 1 or more days to turn on daily cleanup. This plugin will not delete old rows unless you opt in.', 'user-history'); ?>
         </p>
         <?php if ($days > 0) : ?>
             <p class="description">

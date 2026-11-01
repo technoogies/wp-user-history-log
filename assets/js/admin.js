@@ -11,6 +11,7 @@
         initChangeUsername();
         initClearHistory();
         initClearAllLogs();
+        initClearActivityLog();
         initLockToggle();
         initDestroySessions();
     });
@@ -378,6 +379,61 @@
             .fail(function () {
                 setClearAllMessage(message, i18n.errorGeneric || 'Something went wrong. Please try again.', false);
                 $btn.removeClass('loading').prop('disabled', false).text(i18n.clearAllLogs || 'Clear All Logs');
+            });
+        });
+    }
+
+    /**
+     * Activity Log: clear every activity row.
+     */
+    function initClearActivityLog() {
+        const $clearBtn = $('#user-history-clear-activity-log');
+        const message = document.getElementById('user-history-clear-activity-log-message');
+
+        if (!$clearBtn.length) {
+            return;
+        }
+
+        $clearBtn.on('click', function (e) {
+            e.preventDefault();
+
+            if (!confirm(i18n.confirmClearActivity || 'Delete ALL activity log entries? This cannot be undone.')) {
+                return;
+            }
+
+            const $btn = $(this);
+
+            if ($btn.hasClass('loading')) {
+                return;
+            }
+
+            setClearAllMessage(message, '');
+            $btn.addClass('loading').prop('disabled', true).text(i18n.clearing || 'Clearing...');
+
+            $.ajax({
+                url: userHistoryData.ajaxUrl,
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    action: 'user_history_clear_activity_log',
+                    nonce: userHistoryData.clearActivityLogNonce
+                }
+            })
+            .done(function (response) {
+                if (response.success) {
+                    window.location.reload();
+                    return;
+                }
+
+                const errorText = response && response.data && response.data.message
+                    ? response.data.message
+                    : i18n.errorGeneric || 'Something went wrong. Please try again.';
+                setClearAllMessage(message, errorText, false);
+                $btn.removeClass('loading').prop('disabled', false).text(i18n.clearActivityLog || 'Clear Activity Log');
+            })
+            .fail(function () {
+                setClearAllMessage(message, i18n.errorGeneric || 'Something went wrong. Please try again.', false);
+                $btn.removeClass('loading').prop('disabled', false).text(i18n.clearActivityLog || 'Clear Activity Log');
             });
         });
     }

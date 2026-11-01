@@ -38,6 +38,8 @@ final class SettingsAdminTest extends WP_Ajax_UnitTestCase
         $this->assertSame(0, (int) get_option('user_history_retention_days', 0));
         $this->assertSame('0', $settings->sanitize_login_tracking(''));
         $this->assertSame('0', (string) get_option('user_history_login_tracking_enabled', '0'));
+        $this->assertSame('0', (string) get_option(User_History_Activity_Log::OPTION_ENABLED, '0'));
+        $this->assertFalse(User_History_Activity_Log::get_instance()->is_enabled());
 
         $removed = $this->plugin->prune_expired_history();
         $this->assertSame(0, $removed);
@@ -124,7 +126,7 @@ final class SettingsAdminTest extends WP_Ajax_UnitTestCase
         $this->assertNotFalse($this->findMenuSlug($menu, 'user-history'));
         $this->assertArrayHasKey('user-history', $submenu);
         $submenu_titles = array_values(array_column($submenu['user-history'], 0));
-        $this->assertSame(['Lock Accounts', 'Dashboard Access', 'Username Restrictions', 'Settings'], $submenu_titles);
+        $this->assertSame(['Activity Log', 'Lock Accounts', 'Dashboard Access', 'Username Restrictions', 'Settings'], $submenu_titles);
 
         $editor = self::factory()->user->create(['role' => 'editor']);
         $editor_user = get_userdata($editor);

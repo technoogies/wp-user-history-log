@@ -1,15 +1,17 @@
-# User History
+# User Management & History
 
-A WordPress plugin that tracks changes made to user accounts and allows admins to change usernames.
+A WordPress plugin that records account history and helps admins manage users: change username, edit nicename, delete user, lock or unlock accounts, and monitor logins and sessions. It also offers dashboard access control, registration username rules, a site-wide activity log, unique nicenames for new accounts, and updates from GitHub Releases.
 
 <img width="1547" height="1071" alt="image" src="https://github.com/user-attachments/assets/1ba77413-4e63-416b-8ca4-242e499acadb" />
 
 
 ## Features
 
-- **Track Profile Changes** - Automatically logs changes to username, email, display name, first/last name, nickname, website, bio, and role
+- **Account History** - Logs changes to username, email, display name, nicename, first/last name, nickname, website, bio, and role
 - **Password Change Logging** - Records when passwords are changed (without storing any password data)
-- **Change Username** - Allows admins to change usernames directly from the user edit page (WordPress normally doesn't allow this)
+- **Change Username** - Change usernames from the user edit page (WordPress normally does not allow this)
+- **Edit Nicename** - Edit nicename on the user profile; the field sits under Nickname
+- **Delete User** - Delete User button on the user edit page
 - **Search by Previous Values** - Find users on the All Users page by their old email or username
 - **See Who Made Changes** - Each log entry shows whether the user changed their own profile or if an admin made the change
 - **Clear History** - Operators with the dedicated `manage_user_history` capability can clear a user's history log
@@ -17,10 +19,10 @@ A WordPress plugin that tracks changes made to user accounts and allows admins t
 - **Lock Accounts** - Lock a user to sign them out and block logins; migrate existing Lock User Account flags once
 - **Login and session monitoring** - Optional login/logout/failed-login history (off by default) and a Sessions tab with Log Out Everywhere
 - **Dashboard Access** - Optional `/wp-admin` restriction (off by default). Enabling it requires `manage_user_history` and `manage_options`
-- **Username Restrictions** - Optional registration username rules (off by default) with a Test Usernames tool
+- **Registration username rules** - Optional rules for new registrations (off by default) with a Test Usernames tool
 - **Activity Log** - Optional site-wide log of content, media, comments, users, logins, extensions, and settings (off by default)
 - **Unique nicenames for new accounts** - New users get a URL-friendly nicename from display name or first+last; it is never the username and stays unique. Existing accounts are not rewritten
-- **GitHub updates** - The Plugins screen shows updates from this repo’s public GitHub Releases (no WordPress.org listing and no GitHub token)
+- **GitHub Release updates** - The Plugins screen shows updates from this repo’s public GitHub Releases (no WordPress.org listing and no GitHub token)
 - **Privacy Export** - WordPress personal-data export includes decrypted account history; erasure keeps the audit trail unless an operator explicitly allows removal
 - **Multisite Compatible** - Works with WordPress multisite installations
 - **Members Plugin Compatible** - Works with the Members plugin for multiple role assignments

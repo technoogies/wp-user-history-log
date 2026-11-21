@@ -77,6 +77,7 @@ function user_history_uninstall_current_site() {
         delete_metadata('user', 0, 'user_history_disable_gravatar', '', true);
         delete_metadata('user', 0, 'user_history_staff_note', '', true);
         delete_metadata('user', 0, 'user_history_staff_tag', '', true);
+        delete_metadata('user', 0, 'user_history_last_login', '', true);
     }
 }
 

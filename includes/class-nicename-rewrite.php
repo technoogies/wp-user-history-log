@@ -88,12 +88,19 @@ class User_History_Nicename_Rewrite {
         }
 
         wp_nonce_field(self::NONCE_ACTION, self::NONCE_FIELD, false, true);
+        /*
+         * wp-admin/users.php wraps this toolbar in a GET form. A normal submit
+         * never reaches handle_request(), so matching nicenames stay unchanged.
+         * formmethod and formaction post just this button to Users.
+         */
         ?>
         <button
             type="submit"
             name="<?php echo esc_attr(self::PREVIEW_ACTION); ?>"
             value="1"
             class="button user-history-rewrite-nicenames"
+            formmethod="post"
+            formaction="<?php echo esc_url(admin_url('users.php')); ?>"
         >
             <?php esc_html_e('Rewrite matching nicenames', 'user-history'); ?>
         </button>

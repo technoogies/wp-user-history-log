@@ -75,6 +75,55 @@ final class NicenameRewriteTest extends WP_UnitTestCase
         $this->assertGreaterThanOrEqual(1, $result['changed']);
     }
 
+    public function test_hyphenated_login_that_still_matches_its_nicename_is_rewritten_from_first_and_last(): void
+    {
+        $this->actAsAdmin();
+        $user_id = $this->createLegacyUser(
+            [
+                'user_login'   => 'a-addavies',
+                'user_email'   => 'a-addavies@example.com',
+                'display_name' => 'a-addavies',
+                'first_name'   => 'A',
+                'last_name'    => 'D Davies',
+                'nickname'     => 'a-addavies',
+            ],
+            'a-addavies'
+        );
+        $skipped = self::factory()->user->create(
+            [
+                'role'         => 'subscriber',
+                'user_login'   => 'a-kept',
+                'user_email'   => 'a-kept@example.com',
+                'display_name' => 'Kept Person',
+            ]
+        );
+        $skipped_nicename = get_userdata($skipped)->user_nicename;
+        $this->assertNotSame(get_userdata($skipped)->user_login, $skipped_nicename);
+        $this->assertSame('a-addavies', get_user_meta($user_id, 'nickname', true));
+
+        ob_start();
+        $this->rewrite->render_users_button('top');
+        $button = ob_get_clean();
+        $this->assertStringContainsString('formmethod="post"', $button);
+        $this->assertStringContainsString('formaction="' . esc_url(admin_url('users.php')) . '"', $button);
+
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_GET[User_History_Nicename_Rewrite::PREVIEW_ACTION] = '1';
+        $this->rewrite->handle_request();
+        $this->assertSame('a-addavies', get_userdata($user_id)->user_nicename);
+
+        $this->rewrite->rewrite_matching_nicenames();
+
+        $user = get_userdata($user_id);
+        $this->assertSame('a-d-davies', $user->user_nicename);
+        $this->assertSame('a-addavies', $user->user_login);
+        $this->assertNotSame($user->user_login, $user->user_nicename);
+        $this->assertSame('a-addavies', get_user_meta($user_id, 'nickname', true));
+        $this->assertSame('A', get_user_meta($user_id, 'first_name', true));
+        $this->assertSame('D Davies', get_user_meta($user_id, 'last_name', true));
+        $this->assertSame($skipped_nicename, get_userdata($skipped)->user_nicename);
+    }
+
     public function test_first_and_last_name_are_used_when_display_name_is_the_login(): void
     {
         $this->actAsAdmin();
@@ -521,6 +570,7 @@ final class NicenameRewriteTest extends WP_UnitTestCase
         $html = ob_get_clean();
 
         $this->assertStringContainsString('Rewrite matching nicenames', $html);
+        $this->assertStringContainsString('formmethod="post"', $html);
         $this->assertStringContainsString('user_history_nicename_rewrite_preview', $html);
         $this->assertStringContainsString('user_history_nicename_rewrite_nonce', $html);
         $this->assertStringNotContainsString('user_history_nicename_rewrite_confirm', $html);

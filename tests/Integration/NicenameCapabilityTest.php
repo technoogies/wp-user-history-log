@@ -69,23 +69,110 @@ final class NicenameCapabilityTest extends WP_UnitTestCase
         $this->assertSame('keep-this-nicename', get_userdata($subject)->user_nicename);
     }
 
-    public function test_subscriber_cannot_change_their_own_nicename(): void
+    public function test_subscriber_can_edit_only_their_own_nicename(): void
     {
         $subscriber = self::factory()->user->create(
             [
-                'role'          => 'subscriber',
-                'user_nicename' => 'self-nicename',
+                'role'       => 'subscriber',
+                'user_email' => 'self.nicename@example.com',
             ]
         );
+        $other = self::factory()->user->create(
+            [
+                'role'       => 'subscriber',
+                'user_email' => 'other.nicename@example.com',
+            ]
+        );
+        $this->pinNicename($subscriber, 'self-nicename');
+        $this->pinNicename($other, 'other-nicename');
+        $subscriber_email = get_userdata($subscriber)->user_email;
+        $other_email = get_userdata($other)->user_email;
         wp_set_current_user($subscriber);
 
+        $this->assertFalse(current_user_can('edit_users'));
         $this->assertTrue(current_user_can('edit_user', $subscriber));
-        $this->assertFalse($this->canChangeNicename($subscriber));
+        $this->assertFalse(current_user_can('edit_user', $other));
+        $this->assertTrue($this->canChangeNicename($subscriber));
+        $this->assertFalse($this->canChangeNicename($other));
 
-        $_POST['user_nicename'] = 'self-hijack';
+        ob_start();
+        $this->plugin->render_nicename_field(get_userdata($subscriber));
+        $own_field = ob_get_clean();
+        $this->assertStringContainsString('name="user_nicename"', $own_field);
+        $this->assertStringContainsString('user-history-nicename-wrap', $own_field);
+
+        ob_start();
+        $this->plugin->render_nicename_field(get_userdata($other));
+        $this->assertSame('', ob_get_clean());
+
+        $_POST['user_nicename'] = get_userdata($other)->user_nicename;
+        $_POST['email'] = 'hijack@example.com';
+        $_POST['role'] = 'administrator';
+        $errors = new WP_Error();
+        $this->plugin->validate_nicename_submission($errors, true, get_userdata($subscriber));
+        $this->assertContains('user_nicename_duplicate', $errors->get_error_codes());
+        $this->plugin->save_nicename_field($subscriber);
+        $this->assertSame('self-nicename', get_userdata($subscriber)->user_nicename);
+
+        $_POST['user_nicename'] = 'self-chosen';
+        $errors = new WP_Error();
+        $this->plugin->validate_nicename_submission($errors, true, get_userdata($subscriber));
+        $this->assertEmpty($errors->get_error_codes());
         $this->plugin->save_nicename_field($subscriber);
 
-        $this->assertSame('self-nicename', get_userdata($subscriber)->user_nicename);
+        $saved = get_userdata($subscriber);
+        $this->assertSame('self-chosen', $saved->user_nicename);
+        $this->assertSame('subscriber', $saved->roles[0]);
+        $this->assertSame($subscriber_email, $saved->user_email);
+        $this->assertFalse(user_can($subscriber, 'edit_users'));
+
+        $_POST['user_nicename'] = 'other-hijack';
+        $_POST['email'] = 'other-hijack@example.com';
+        $_POST['role'] = 'administrator';
+        $errors = new WP_Error();
+        $this->plugin->validate_nicename_submission($errors, true, get_userdata($other));
+        $this->assertContains('user_nicename_permission', $errors->get_error_codes());
+        $this->plugin->save_nicename_field($other);
+
+        $untouched = get_userdata($other);
+        $this->assertSame('other-nicename', $untouched->user_nicename);
+        $this->assertSame($other_email, $untouched->user_email);
+        $this->assertSame('subscriber', $untouched->roles[0]);
+    }
+
+    public function test_editor_can_change_their_own_nicename_but_not_another_users(): void
+    {
+        $editor = self::factory()->user->create(
+            [
+                'role'       => 'editor',
+                'user_email' => 'editor.own.nicename@example.com',
+            ]
+        );
+        $subject = self::factory()->user->create(
+            [
+                'role'       => 'subscriber',
+                'user_email' => 'editor.subject.nicename@example.com',
+            ]
+        );
+        $this->pinNicename($editor, 'editor-own-nicename');
+        $this->pinNicename($subject, 'editor-subject-nicename');
+        wp_set_current_user($editor);
+
+        $this->assertFalse(current_user_can('edit_users'));
+        $this->assertTrue($this->canChangeNicename($editor));
+        $this->assertFalse($this->canChangeNicename($subject));
+
+        $_POST['user_nicename'] = 'editor-self-chosen';
+        $errors = new WP_Error();
+        $this->plugin->validate_nicename_submission($errors, true, get_userdata($editor));
+        $this->assertEmpty($errors->get_error_codes());
+        $this->plugin->save_nicename_field($editor);
+        $this->assertSame('editor-self-chosen', get_userdata($editor)->user_nicename);
+
+        $_POST['user_nicename'] = 'editor-subject-hijack';
+        $this->plugin->save_nicename_field($subject);
+        $this->assertSame('editor-subject-nicename', get_userdata($subject)->user_nicename);
+        $this->assertSame('editor', get_userdata($editor)->roles[0]);
     }
 
     public function test_administrator_can_still_change_nicename(): void
@@ -111,6 +198,21 @@ final class NicenameCapabilityTest extends WP_UnitTestCase
         $method->setAccessible(true);
 
         return (bool) $method->invoke($this->plugin, (int) $user_id);
+    }
+
+    private function pinNicename(int $user_id, string $nicename): void
+    {
+        global $wpdb;
+
+        $wpdb->update(
+            $wpdb->users,
+            ['user_nicename' => $nicename],
+            ['ID' => $user_id],
+            ['%s'],
+            ['%d']
+        );
+        clean_user_cache($user_id);
+        $this->assertSame($nicename, get_userdata($user_id)->user_nicename);
     }
 
     private function registerAccountManagerRole(): void

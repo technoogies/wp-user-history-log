@@ -4,7 +4,7 @@ Tags: user history, user log, audit log, change username, user tracking
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.12.0
+Stable tag: 1.12.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -137,11 +137,11 @@ Open User History → Dashboard Access and turn on Restrict Dashboard Access. Th
 
 = How are nicenames set for new users? =
 
-For new accounts, the plugin slugs the nicename from the display name, or from first and last name on Users → Add New. It is never the same as the username. If that slug is already used, a suffix such as -2 is added. Saving a profile does not rewrite an existing nicename. You can still edit Nicename under Nickname on the profile.
+For new accounts, the plugin slugs the nicename from the display name, or from first and last name on Users → Add New. It is never the same as the username. If that slug is already used, a suffix such as -2 is added. Saving the rest of a profile does not rewrite an existing nicename. Nicename stays under Nickname. You can edit your own. Changing someone else's still requires permission to edit that account.
 
 = How do I update old nicenames that match the username? =
 
-On Users, click Rewrite matching nicenames. The next screen tells you how many accounts still use the username as the nicename and how many already differ. Click Update matching nicenames and confirm. Only accounts whose nicename is still the same as the username are changed. The new value follows the same display-name or first-and-last rule as a new account, and it will not stay equal to the username. Usernames are not changed. You need to be able to edit users.
+On Users, click Rewrite matching nicenames. That button counts. The next screen tells you how many accounts still use the username as the nicename and how many already differ. Click Update matching nicenames and confirm. Only accounts whose nicename is still the same as the username are changed, including a username such as a-addavies whose nicename is also a-addavies. The new value follows the same display-name or first-and-last rule as a new account, and it will not stay equal to the username. If that slug is taken, a suffix such as -2 is added. Usernames are not changed. You need to be able to edit users.
 
 = How do I get plugin updates? =
 
@@ -166,6 +166,11 @@ Open User History → Username Restrictions and turn the feature on. It stays of
 3. Search results showing users found by previous email/username
 
 == Changelog ==
+
+= 1.12.1 =
+* Fixed Rewrite matching nicenames so accounts whose nicename is still the username are updated, including a username like a-addavies
+* The new nicename uses the display name, or first and last name, and is never left equal to the username
+* You can edit your own nicename under Nickname. Editing someone else's nicename still requires permission to edit that account
 
 = 1.12.0 =
 * Added a private staff note on the user profile. Only people who can edit users can see or save it
@@ -293,6 +298,9 @@ Open User History → Username Restrictions and turn the feature on. It stays of
 * Account History display on user edit page
 
 == Upgrade Notice ==
+
+= 1.12.1 =
+Rewrite matching nicenames now updates accounts whose nicename is still the username. You can edit your own nicename under Nickname. Other profile fields are unchanged.
 
 = 1.12.0 =
 User profiles have a private staff note and tags for people who can edit users. Users can filter by a tag. Someone who cannot edit users does not see the note.

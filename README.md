@@ -23,8 +23,9 @@ A WordPress plugin that records account history and helps admins manage users: c
 - **Activity Log** - Optional site-wide log of content, media, comments, users, logins, extensions, and settings (off by default)
 - **Unique nicenames** - New users get a URL-friendly nicename from display name or first+last; it is never the username and stays unique. Users has a button to rewrite older accounts whose nicename still matches the username. Accounts that already differ are skipped
 - **Profile photo** - A checkbox on each user profile, off until checked, that turns off that user's Gravatar and profile photo. Subscribers and staff are treated the same
+- **Staff notes and tags** - A private note and comma-separated tags on the user profile, visible only to people who can edit users. Users can filter by a tag. Stored as user meta, with no new table
 - **GitHub Release updates** - The Plugins screen shows updates from this repo’s public GitHub Releases (no WordPress.org listing and no GitHub token)
-- **Privacy Export** - WordPress personal-data export includes decrypted account history; erasure keeps the audit trail unless an operator explicitly allows removal
+- **Privacy Export** - WordPress personal-data export includes decrypted account history, plus any staff note and tags. Erasure removes the note and tags. The audit trail stays unless an operator explicitly allows removal
 - **Multisite Compatible** - Works with WordPress multisite installations
 - **Members Plugin Compatible** - Works with the Members plugin for multiple role assignments
 
@@ -246,6 +247,14 @@ Administrators bypass the rules on **Users → Add New** and **Change Username**
 
 On **Users → Edit user**, and on your own profile, **Profile photo** has **Turn off Gravatar and profile photo for this user**. It stays unchecked until you check it. Only that user gets a blank image from this site. Subscribers and staff work the same way. There is no site-wide switch and no new role. The `user_history_disable_gravatar` filter can override the choice for one user.
 
+### Staff notes and tags
+
+**Users → Edit user** has **Staff notes** for people who can edit users. Someone who cannot edit users does not see the note or the tags, including on their own profile. Tags are comma-separated (`vip, needs follow up`) and are saved as short labels (`vip`, `needs-follow-up`). **Users** then shows a **Tag:** link for each one. That link lists only accounts with that tag. The note is one user meta value (`user_history_staff_note`). Each tag is one meta row (`user_history_staff_tag`). There is no new table.
+
+On multisite, the same `edit_users` rule applies, so a subsite administrator without `manage_network_users` does not see the note. The meta is stored on the user, so the note is the same record across the network.
+
+A personal-data export includes the note and tags. Erasing personal data removes them. Account history is still kept unless erasure is explicitly allowed.
+
 ### Nicenames
 
 New accounts get a nicename from the display name, or from first and last name on **Users → Add New**. The value is never equal to the username. If that slug is already taken, it adds `-2`, `-3`, and so on. Saving a profile does not rewrite an existing nicename. You can still edit Nicename under Nickname.
@@ -253,6 +262,11 @@ New accounts get a nicename from the display name, or from first and last name o
 **Users** has **Rewrite matching nicenames**. That button only counts. The next screen shows how many accounts still use the username as the nicename and how many already differ. **Update matching nicenames** asks you to confirm, then rewrites only the matches, using the same display-name or first-and-last rule. Usernames are not changed. You need to be allowed to edit users.
 
 ## Changelog
+
+### 1.12.0
+- Added a private staff note on the user profile. Only people who can edit users can see or save it
+- Added tags on that same profile, stored as user meta, with a tag filter on Users
+- A personal-data export includes the note and tags. Erasing personal data removes them. Account history is unchanged
 
 ### 1.11.1
 - Added a Users screen button to rewrite nicenames that still match the username

@@ -258,6 +258,36 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertStringNotContainsString('user_history_disable_staff_gravatar', $uninstall);
     }
 
+    public function test_staff_notes_are_private_user_meta_without_a_new_table(): void
+    {
+        $notes = $this->staffNotesSource();
+
+        $this->assertStringContainsString("if (!defined('ABSPATH'))", $notes);
+        $this->assertStringContainsString("META_NOTE = 'user_history_staff_note'", $notes);
+        $this->assertStringContainsString("META_TAG = 'user_history_staff_tag'", $notes);
+        $this->assertStringContainsString("current_user_can('edit_users')", $notes);
+        $this->assertStringContainsString("current_user_can('edit_user', \$user_id)", $notes);
+        $this->assertStringContainsString("add_filter('views_users'", $notes);
+        $this->assertStringContainsString("add_filter('users_list_table_query_args'", $notes);
+        $this->assertStringContainsString('wp_privacy_personal_data_exporters', $notes);
+        $this->assertStringContainsString('wp_privacy_personal_data_erasers', $notes);
+        $this->assertStringNotContainsString('CREATE TABLE', $notes);
+        $this->assertStringNotContainsString('TRUNCATE', $notes);
+        $this->assertStringNotContainsString('wp_ajax_nopriv_', $notes);
+        $this->assertStringNotContainsString('wp_ajax_', $notes);
+        $this->assertStringNotContainsString('ipinfo.io', $notes);
+        $this->assertStringContainsString('boot_staff_notes', $this->source);
+        $this->assertStringContainsString('class-staff-notes.php', $this->source);
+        $this->assertStringContainsString('boot_profile_photo', $this->source);
+        $this->assertStringContainsString('boot_nicename_rewrite', $this->source);
+
+        $uninstall = file_get_contents(dirname(__DIR__, 2) . '/uninstall.php');
+        $this->assertNotFalse($uninstall);
+        $this->assertStringContainsString("delete_metadata('user', 0, 'user_history_staff_note', '', true)", $uninstall);
+        $this->assertStringContainsString("delete_metadata('user', 0, 'user_history_staff_tag', '', true)", $uninstall);
+        $this->assertStringContainsString("delete_metadata('user', 0, 'user_history_disable_gravatar', '', true)", $uninstall);
+    }
+
     public function test_uninstall_does_not_wipe_history_by_default(): void
     {
         $uninstall = file_get_contents(dirname(__DIR__, 2) . '/uninstall.php');
@@ -417,6 +447,14 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertNotFalse($photos);
 
         return $photos;
+    }
+
+    private function staffNotesSource(): string
+    {
+        $notes = file_get_contents(dirname(__DIR__, 2) . '/includes/class-staff-notes.php');
+        $this->assertNotFalse($notes);
+
+        return $notes;
     }
 
     private function updaterSource(): string

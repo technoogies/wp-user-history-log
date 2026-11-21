@@ -50,6 +50,7 @@ The suite checks that:
 - new accounts get a unique nicename from display name or first+last that is never the username; profile saves do not rewrite an existing nicename;
 - Users → Rewrite matching nicenames only counts, and the confirm step rewrites a nicename only when it still equals the username, then reports how many changed and how many were skipped;
 - a user's Gravatar and profile photo stay on until that user's profile checkbox is checked, subscribers and staff are treated the same, and user_history_disable_gravatar can override one user;
+- staff notes and tags are user meta, visible only to people who can edit users, with an All Users tag filter, and personal-data erasure removes them without deleting account history;
 - the empty-history notice is built with text nodes instead of a jQuery `.html()` string;
 - plugin header Version matches the readme stable tag;
 - GitHub Release tags 1.8.0 and v1.8.0 normalize to the same version;

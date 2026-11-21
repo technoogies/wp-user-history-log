@@ -14,6 +14,7 @@
         initClearActivityLog();
         initLockToggle();
         initDestroySessions();
+        initSessionPages();
     });
 
     const i18n = userHistoryData.i18n || {};
@@ -484,19 +485,7 @@
                         : i18n.success || 'Success.';
                     setLockMessage(message, text, true);
                     $button.removeClass('loading').prop('disabled', true).text(i18n.logOutEverywhere || 'Log Out Everywhere');
-                    const $tbody = $('.user-history-sessions-table tbody');
-                    if ($tbody.length) {
-                        $tbody.empty();
-                        const row = document.createElement('tr');
-                        const cell = document.createElement('td');
-                        cell.colSpan = 4;
-                        const empty = document.createElement('p');
-                        empty.className = 'user-history-empty';
-                        empty.appendChild(document.createTextNode(i18n.noSessions || 'No active sessions.'));
-                        cell.appendChild(empty);
-                        row.appendChild(cell);
-                        $tbody.append(row);
-                    }
+                    clearSessionRowsAfterLogout();
                     return;
                 }
 
@@ -511,6 +500,234 @@
                 $button.removeClass('loading').prop('disabled', false).text(i18n.logOutEverywhere || 'Log Out Everywhere');
             });
         });
+    }
+
+    /**
+     * Sessions: show the newest 25, then page the older ones 100 at a time.
+     */
+    function initSessionPages() {
+        const loadButton = document.getElementById('user-history-load-session-pages');
+
+        if (!loadButton) {
+            return;
+        }
+
+        loadButton.addEventListener('click', function (event) {
+            event.preventDefault();
+            requestSessionPage(1, loadButton);
+        });
+
+        document.addEventListener('click', function (event) {
+            const target = event.target;
+            if (!target || !target.closest) {
+                return;
+            }
+
+            const pageButton = target.closest('.user-history-sessions-page');
+            if (!pageButton || pageButton.disabled) {
+                return;
+            }
+
+            event.preventDefault();
+            const page = parseInt(pageButton.getAttribute('data-page'), 10);
+            if (!page) {
+                return;
+            }
+
+            requestSessionPage(page, pageButton);
+        });
+    }
+
+    function requestSessionPage(page, trigger) {
+        const loadButton = document.getElementById('user-history-load-session-pages');
+        const message = document.getElementById('user-history-sessions-pages-message');
+        const older = document.getElementById('user-history-sessions-older');
+
+        if (!loadButton || !older || (trigger && trigger.classList.contains('loading'))) {
+            return;
+        }
+
+        const userId = parseInt(loadButton.getAttribute('data-user-id') || userHistoryData.userId, 10);
+        if (!userId) {
+            return;
+        }
+
+        setLockMessage(message, '');
+        loadButton.classList.add('loading');
+        loadButton.disabled = true;
+        if (trigger === loadButton) {
+            loadButton.textContent = i18n.loading || 'Loading...';
+        }
+        setSessionPageButtonsDisabled(true);
+
+        $.ajax({
+            url: userHistoryData.ajaxUrl,
+            type: 'POST',
+            dataType: 'json',
+            data: {
+                action: 'user_history_load_session_pages',
+                nonce: userHistoryData.loadSessionPagesNonce,
+                user_id: userId,
+                page: page
+            }
+        })
+        .done(function (response) {
+            loadButton.classList.remove('loading');
+
+            if (!(response && response.success && response.data)) {
+                const errorText = response && response.data && response.data.message
+                    ? response.data.message
+                    : i18n.errorGeneric || 'Something went wrong. Please try again.';
+                restoreSessionPageTrigger(loadButton, trigger);
+                setLockMessage(message, errorText, false);
+                return;
+            }
+
+            replaceSessionPageRows(older, response.data.html || '');
+            older.removeAttribute('hidden');
+            loadButton.setAttribute('hidden', 'hidden');
+            loadButton.disabled = true;
+            loadButton.textContent = i18n.loadPages || 'Load Pages';
+            renderSessionPagination(response.data.page, response.data.pages);
+            setLockMessage(message, '');
+        })
+        .fail(function () {
+            loadButton.classList.remove('loading');
+            restoreSessionPageTrigger(loadButton, trigger);
+            setLockMessage(message, i18n.errorGeneric || 'Something went wrong. Please try again.', false);
+        });
+    }
+
+    function restoreSessionPageTrigger(loadButton, trigger) {
+        if (trigger === loadButton && !loadButton.hasAttribute('hidden')) {
+            loadButton.disabled = false;
+            loadButton.textContent = i18n.loadPages || 'Load Pages';
+        }
+        setSessionPageButtonsDisabled(false);
+    }
+
+    function replaceSessionPageRows(older, html) {
+        while (older.firstChild) {
+            older.removeChild(older.firstChild);
+        }
+
+        if (html) {
+            $(older).append(html);
+        }
+    }
+
+    function renderSessionPagination(page, pages) {
+        const nav = document.getElementById('user-history-sessions-pagination');
+        if (!nav) {
+            return;
+        }
+
+        while (nav.firstChild) {
+            nav.removeChild(nav.firstChild);
+        }
+
+        page = parseInt(page, 10) || 0;
+        pages = parseInt(pages, 10) || 0;
+        if (page < 1 || pages < 1) {
+            nav.setAttribute('hidden', 'hidden');
+            return;
+        }
+
+        nav.removeAttribute('hidden');
+
+        const status = document.createElement('span');
+        status.className = 'user-history-sessions-page-status';
+        const template = i18n.sessionsPage || 'Page %1$d of %2$d';
+        status.appendChild(document.createTextNode(
+            template.replace('%1$d', String(page)).replace('%2$d', String(pages))
+        ));
+        nav.appendChild(status);
+
+        nav.appendChild(buildSessionPageButton(
+            i18n.previous || 'Previous',
+            Math.max(1, page - 1),
+            page <= 1
+        ));
+        nav.appendChild(document.createTextNode(' '));
+        nav.appendChild(buildSessionPageButton(
+            i18n.next || 'Next',
+            Math.min(pages, page + 1),
+            page >= pages
+        ));
+    }
+
+    function buildSessionPageButton(label, page, disabled) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'button user-history-sessions-page';
+        button.setAttribute('data-page', String(page));
+        button.disabled = !!disabled;
+        if (disabled) {
+            button.setAttribute('data-edge', '1');
+        }
+        button.appendChild(document.createTextNode(label));
+        return button;
+    }
+
+    function setSessionPageButtonsDisabled(disabled) {
+        const nav = document.getElementById('user-history-sessions-pagination');
+        if (!nav) {
+            return;
+        }
+
+        const buttons = nav.querySelectorAll('.user-history-sessions-page');
+        for (let index = 0; index < buttons.length; index++) {
+            const button = buttons[index];
+            button.classList.toggle('loading', !!disabled);
+            button.disabled = !!disabled || button.getAttribute('data-edge') === '1';
+        }
+    }
+
+    function clearSessionRowsAfterLogout() {
+        const newest = document.getElementById('user-history-sessions-newest');
+        const older = document.getElementById('user-history-sessions-older');
+        const loadButton = document.getElementById('user-history-load-session-pages');
+        const nav = document.getElementById('user-history-sessions-pagination');
+        const pageMessage = document.getElementById('user-history-sessions-pages-message');
+
+        if (loadButton) {
+            loadButton.setAttribute('hidden', 'hidden');
+            loadButton.disabled = true;
+        }
+        setLockMessage(pageMessage, '');
+
+        if (nav) {
+            while (nav.firstChild) {
+                nav.removeChild(nav.firstChild);
+            }
+            nav.setAttribute('hidden', 'hidden');
+        }
+
+        if (older) {
+            while (older.firstChild) {
+                older.removeChild(older.firstChild);
+            }
+            older.setAttribute('hidden', 'hidden');
+        }
+
+        const tbody = newest || document.querySelector('.user-history-sessions-table tbody');
+        if (!tbody) {
+            return;
+        }
+
+        while (tbody.firstChild) {
+            tbody.removeChild(tbody.firstChild);
+        }
+
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 4;
+        const empty = document.createElement('p');
+        empty.className = 'user-history-empty';
+        empty.appendChild(document.createTextNode(i18n.noSessions || 'No active sessions.'));
+        cell.appendChild(empty);
+        row.appendChild(cell);
+        tbody.appendChild(row);
     }
 
     function resetHistoryTable(panelId, emptyText) {

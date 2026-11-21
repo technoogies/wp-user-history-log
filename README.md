@@ -219,7 +219,9 @@ Accounts already locked by the Lock User Account plugin (`baba_user_locked = yes
 
 **User History → Settings** has **Record logins** off by default. When you turn it on, Account History → **Logins** shows login, logout, and failed-login rows (failed attempts only when the typed username or email matches a real account). Passwords are never stored. The browser/OS label is parsed locally. IP follows the existing Record IP addresses setting.
 
-The **Sessions** tab is always available to people who can edit that user. **Log Out Everywhere** requires `edit_users` and `edit_user`. Confirming it on your own account warns that you will be signed out too.
+The **Sessions** tab is always available to people who can edit that user. The list is newest login first. The first view shows 25 sessions. **Load Pages** shows the older ones, 100 per page, under those 25. Session tokens stay stored. **Log Out Everywhere** requires `edit_users` and `edit_user`. Confirming it on your own account warns that you will be signed out too.
+
+New logins store the visitor IP when `CF-Connecting-IP`, `X-Real-IP`, or the client address in `X-Forwarded-For` is a public IP. That replaces the proxy address WordPress would have copied from `REMOTE_ADDR`. Sessions already stored keep the old server IP until they end. **Record IP addresses** still applies only to history and activity rows, which stay on `REMOTE_ADDR`.
 
 ### Dashboard access
 
@@ -238,6 +240,12 @@ Administrators bypass the rules on **Users → Add New** and **Change Username**
 New accounts only. The plugin slugs the nicename from display name, or from first+last when that is what **Users → Add New** provides. The value is never equal to the username. If that slug is already taken, it adds `-2`, `-3`, and so on. Existing `user_nicename` values stay as they are. You can still edit Nicename under Nickname on the user profile.
 
 ## Changelog
+
+### 1.10.0
+- Sessions lists the newest login first and shows 25 sessions until Load Pages is clicked
+- Older sessions then load 100 per page, under those 25. Session tokens are not deleted
+- New sessions store a public client IP from CF-Connecting-IP, X-Real-IP, or X-Forwarded-For when the server address is the proxy
+- Existing session rows keep their stored IP until that session ends. History and activity IP collection is unchanged
 
 ### 1.9.0
 - Show plugin updates in wp-admin from this repo’s public GitHub Releases

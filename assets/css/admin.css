@@ -287,6 +287,18 @@
     background: #f0f6fc;
 }
 
+.user-history-sessions-pagination {
+    margin: 8px 0 12px;
+}
+
+.user-history-sessions-pagination .button {
+    margin-left: 4px;
+}
+
+.user-history-sessions-page-status {
+    margin-right: 8px;
+}
+
 /* ==========================================================================
    Account lock
    ========================================================================== */

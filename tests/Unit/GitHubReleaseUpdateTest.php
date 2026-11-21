@@ -69,9 +69,9 @@ final class GitHubReleaseUpdateTest extends TestCase
         $this->assertStringNotContainsString('github_pat_', $script);
 
         $this->assertSame(1, preg_match('/^\s*\*\s*Version:\s*(.+)$/m', $plugin, $plugin_version));
-        $this->assertSame('1.12.1', trim($plugin_version[1]));
+        $this->assertSame('1.13.0', trim($plugin_version[1]));
         $this->assertSame(
-            User_History_Update_Checker::normalize_release_tag('v1.12.1'),
+            User_History_Update_Checker::normalize_release_tag('v1.13.0'),
             User_History_Update_Checker::normalize_release_tag(trim($plugin_version[1]))
         );
     }

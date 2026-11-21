@@ -51,6 +51,7 @@ The suite checks that:
 - Users → Rewrite matching nicenames posts from the GET users list, only counts, and the confirm step rewrites a nicename only when it still equals the username (including a-addavies with first name A and last name D Davies), then reports how many changed and how many were skipped;
 - a user's Gravatar and profile photo stay on until that user's profile checkbox is checked, subscribers and staff are treated the same, and user_history_disable_gravatar can override one user;
 - staff notes and tags are user meta, visible only to people who can edit users, with an All Users tag filter, and personal-data erasure removes them without deleting account history;
+- a successful login stamps last login even when login recording is off, Users shows that time, the duplicate screen is read-only, and the CSV uses that same site user list behind manage_user_history and list_users;
 - the empty-history notice is built with text nodes instead of a jQuery `.html()` string;
 - plugin header Version matches the readme stable tag;
 - GitHub Release tags 1.8.0 and v1.8.0 normalize to the same version;

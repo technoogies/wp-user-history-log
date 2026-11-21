@@ -4,7 +4,7 @@ Tags: user history, user log, audit log, change username, user tracking
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.12.1
+Stable tag: 1.13.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -31,8 +31,11 @@ User History tracks all changes made to user profiles and displays a complete hi
 * **Unique nicenames** - New users get a nicename from display name or first+last; never the username; unique suffix if needed. Users has a button to rewrite older accounts whose nicename still matches the username. Accounts that already differ are skipped
 * **Profile photo** - Checkbox on each user profile, off until checked, that turns off that user's Gravatar and profile photo. Subscribers and staff are treated the same
 * **Staff notes and tags** - A private note and comma-separated tags on the user profile, visible only to people who can edit users. Users can filter by a tag. Stored as user meta, with no new table
+* **Last login** - A Last login column on Users. It stores the time of a successful login even when login recording is off
+* **Duplicate users** - A read-only User History screen that lists accounts on this site sharing an email or username
+* **User CSV** - Download that same user list, including last login. Requires manage_user_history and list_users. The file does not lock or change anyone
 * **GitHub updates** - Plugins screen shows updates from this repo's public GitHub Releases
-* **Privacy Export** - WordPress personal-data export includes account history, plus any staff note and tags. Erasure removes the note and tags. The audit trail stays unless explicitly allowed
+* **Privacy Export** - WordPress personal-data export includes account history, plus any staff note, tags, and last login. Erasure removes the note, tags, and last-login stamp. The audit trail stays unless explicitly allowed
 * **Multisite Compatible** - Works with WordPress multisite installations
 * **Members Plugin Compatible** - Works with the Members plugin for multiple role assignments
 
@@ -147,6 +150,18 @@ On Users, click Rewrite matching nicenames. That button counts. The next screen 
 
 This plugin is not listed on WordPress.org. After a GitHub Release is published for a newer Version, the Plugins screen shows the update. Click Check for updates next to the plugin if you just published a Release. No GitHub token is required. The Release tag should match Version: (1.9.0 or v1.9.0).
 
+= Where do I see last login? =
+
+Open Users. The Last login column shows the time of that person's last successful login, or Never if they have not logged in since this version. The time is saved even when User History → Settings has login recording turned off. It stores the time only, not the IP address or the browser. Turning login recording on still keeps the separate Logins tab.
+
+= How do I find duplicate emails or usernames? =
+
+Open User History → Duplicates. The page lists accounts on this site that share an email address or a username. Capital letters are ignored. A blank value is not treated as a match. The page does not change, lock, or disable anyone.
+
+= How do I download a CSV of users? =
+
+On User History → Duplicates, click Download users CSV. The file is the same list of users on this site that the page checks, and it includes last login. A blank last login means there is no stamp yet. You need manage_user_history and list_users. Someone who can edit users but does not have manage_user_history does not get the file. The file does not include passwords, staff notes, or sessions, and downloading it does not change any account.
+
 = How do I add a private note or tag on a user? =
 
 Open Users, then Edit user. Staff notes is on that screen for people who can edit users. Someone who cannot edit users does not see the note or the tags, including on their own profile. Tags are comma-separated, such as vip, needs follow up. Users then shows a Tag link for each one, and that link lists only people with that tag. Notes and tags are user meta. There is no new table. On a multisite network, only people who can edit users see them, and the note is the same record on every site. A personal-data export includes the note and tags. Erasing personal data removes them. Account history is still kept unless you already allowed that.
@@ -166,6 +181,12 @@ Open User History → Username Restrictions and turn the feature on. It stays of
 3. Search results showing users found by previous email/username
 
 == Changelog ==
+
+= 1.13.0 =
+* Added a Last login column on Users. A successful login saves the time even when login recording is off
+* Added User History → Duplicates, a read-only list of accounts on this site that share an email or username
+* Added a CSV download of that same user list, including last login. It requires manage_user_history and list_users, and it does not lock or change anyone
+* A personal-data export includes last login. Erasing personal data removes that stamp. Account history is unchanged
 
 = 1.12.1 =
 * Fixed Rewrite matching nicenames so accounts whose nicename is still the username are updated, including a username like a-addavies
@@ -298,6 +319,9 @@ Open User History → Username Restrictions and turn the feature on. It stays of
 * Account History display on user edit page
 
 == Upgrade Notice ==
+
+= 1.13.0 =
+Users shows a Last login column. User History → Duplicates lists shared emails and usernames and can download a user CSV. Nothing is locked or changed.
 
 = 1.12.1 =
 Rewrite matching nicenames now updates accounts whose nicename is still the username. You can edit your own nicename under Nickname. Other profile fields are unchanged.

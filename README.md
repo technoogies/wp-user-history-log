@@ -24,8 +24,11 @@ A WordPress plugin that records account history and helps admins manage users: c
 - **Unique nicenames** - New users get a URL-friendly nicename from display name or first+last; it is never the username and stays unique. Users has a button to rewrite older accounts whose nicename still matches the username. Accounts that already differ are skipped
 - **Profile photo** - A checkbox on each user profile, off until checked, that turns off that user's Gravatar and profile photo. Subscribers and staff are treated the same
 - **Staff notes and tags** - A private note and comma-separated tags on the user profile, visible only to people who can edit users. Users can filter by a tag. Stored as user meta, with no new table
+- **Last login** - A Last login column on Users. It stores the time of a successful login even when login recording is off
+- **Duplicate users** - A read-only User History screen that lists accounts on this site sharing an email or username
+- **User CSV** - Download that same user list, including last login. Requires `manage_user_history` and `list_users`. The file does not lock or change anyone
 - **GitHub Release updates** - The Plugins screen shows updates from this repo’s public GitHub Releases (no WordPress.org listing and no GitHub token)
-- **Privacy Export** - WordPress personal-data export includes decrypted account history, plus any staff note and tags. Erasure removes the note and tags. The audit trail stays unless an operator explicitly allows removal
+- **Privacy Export** - WordPress personal-data export includes decrypted account history, plus any staff note, tags, and last login. Erasure removes the note, tags, and last-login stamp. The audit trail stays unless an operator explicitly allows removal
 - **Multisite Compatible** - Works with WordPress multisite installations
 - **Members Plugin Compatible** - Works with the Members plugin for multiple role assignments
 
@@ -255,6 +258,16 @@ On multisite, the same `edit_users` rule applies, so a subsite administrator wit
 
 A personal-data export includes the note and tags. Erasing personal data removes them. Account history is still kept unless erasure is explicitly allowed.
 
+### Last login, duplicates, and CSV
+
+**Users** has a **Last login** column. A successful login saves the time even when **User History → Settings** has login recording turned off. The column says **Never** until that happens. The stamp is the time only. It does not store an IP address or a browser, and it does not write an Account History row by itself.
+
+**User History → Duplicates** lists accounts on this site that share an email address or a username. Capital letters are ignored. A blank value is not a match. The page does not change, lock, or disable anyone.
+
+**Download users CSV** on that page uses the same user list, including last login. A blank last login means there is no stamp yet. The download needs `manage_user_history` and `list_users`. Someone who can edit users but does not have `manage_user_history` does not get the file. The file does not include passwords, staff notes, or sessions.
+
+A personal-data export includes the last-login time. Erasing personal data removes that stamp. Account history is still kept unless erasure is explicitly allowed.
+
 ### Nicenames
 
 New accounts get a nicename from the display name, or from first and last name on **Users → Add New**. The value is never equal to the username. If that slug is already taken, it adds `-2`, `-3`, and so on. Saving the rest of a profile does not rewrite an existing nicename. Nicename stays under Nickname. You can edit your own. Changing someone else's still requires permission to edit that account.
@@ -262,6 +275,12 @@ New accounts get a nicename from the display name, or from first and last name o
 **Users** has **Rewrite matching nicenames**. That button only counts. The next screen shows how many accounts still use the username as the nicename and how many already differ. **Update matching nicenames** asks you to confirm, then rewrites only the matches, using the same display-name or first-and-last rule. A username such as `a-addavies` whose nicename is still `a-addavies` is included. Usernames are not changed. You need to be allowed to edit users.
 
 ## Changelog
+
+### 1.13.0
+- Added a Last login column on Users. A successful login saves the time even when login recording is off
+- Added User History → Duplicates, a read-only list of accounts on this site that share an email or username
+- Added a CSV download of that same user list, including last login. It requires `manage_user_history` and `list_users`, and it does not lock or change anyone
+- A personal-data export includes last login. Erasing personal data removes that stamp. Account history is unchanged
 
 ### 1.12.1
 - Fixed Rewrite matching nicenames so accounts whose nicename is still the username are updated, including a username like a-addavies

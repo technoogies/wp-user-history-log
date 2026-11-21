@@ -288,6 +288,56 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertStringContainsString("delete_metadata('user', 0, 'user_history_disable_gravatar', '', true)", $uninstall);
     }
 
+    public function test_user_directory_is_read_only_and_capability_gated(): void
+    {
+        $directory = $this->userDirectorySource();
+
+        $this->assertStringContainsString("if (!defined('ABSPATH'))", $directory);
+        $this->assertStringContainsString("META_LAST_LOGIN = 'user_history_last_login'", $directory);
+        $this->assertStringContainsString("add_action('wp_login'", $directory);
+        $this->assertStringContainsString('update_user_meta($user_id, self::META_LAST_LOGIN', $directory);
+        $this->assertSame(1, substr_count($directory, 'update_user_meta('));
+        $this->assertStringContainsString("add_filter('manage_users_columns'", $directory);
+        $this->assertStringContainsString('function query_site_users(', $directory);
+        $this->assertStringContainsString('return $this->query_site_users();', $directory);
+        $this->assertStringContainsString('$rows = $this->query_site_users();', $directory);
+        $this->assertStringContainsString('$this->send_csv($this->export_rows());', $directory);
+        $this->assertStringContainsString('current_operator_can_export', $directory);
+        $this->assertStringContainsString('User_History::CLEAR_HISTORY_CAPABILITY', $directory);
+        $this->assertStringContainsString("current_user_can('list_users')", $directory);
+        $this->assertStringContainsString('wp_verify_nonce', $directory);
+        $this->assertStringContainsString("'blog_id' => get_current_blog_id()", $directory);
+        $this->assertStringContainsString("admin_post_' . self::EXPORT_ACTION", $directory);
+        $this->assertStringNotContainsString('admin_post_nopriv_', $directory);
+        $this->assertStringNotContainsString('wp_ajax_nopriv_', $directory);
+        $this->assertStringNotContainsString('wp_ajax_', $directory);
+        $this->assertStringNotContainsString('user_history_login_tracking_enabled', $directory);
+        $this->assertStringContainsString("\$key === 'user_history_locked'", $directory);
+        $this->assertStringNotContainsString('user_history_toggle_lock', $directory);
+        $this->assertStringNotContainsString('user_pass', $directory);
+        $this->assertStringNotContainsString('user_history_staff_note', $directory);
+        $this->assertStringNotContainsString('wp_update_user', $directory);
+        $this->assertStringNotContainsString('wp_delete_user', $directory);
+        $this->assertStringNotContainsString('wp_insert_user', $directory);
+        $this->assertStringNotContainsString('CREATE TABLE', $directory);
+        $this->assertStringNotContainsString('TRUNCATE', $directory);
+        $this->assertStringNotContainsString('ipinfo.io', $directory);
+        $this->assertStringNotContainsString('innerHTML', $directory);
+        $this->assertStringNotContainsString('HTTP_X_FORWARDED_FOR', $directory);
+        $this->assertStringContainsString('wp_privacy_personal_data_exporters', $directory);
+        $this->assertStringContainsString('wp_privacy_personal_data_erasers', $directory);
+        $this->assertStringContainsString('delete_user_meta($user_id, self::META_LAST_LOGIN)', $directory);
+        $this->assertStringContainsString('boot_user_directory', $this->source);
+        $this->assertStringContainsString('class-user-directory.php', $this->source);
+        $this->assertStringContainsString('boot_staff_notes', $this->source);
+        $this->assertStringContainsString('boot_profile_photo', $this->source);
+        $this->assertStringContainsString('boot_nicename_rewrite', $this->source);
+
+        $uninstall = file_get_contents(dirname(__DIR__, 2) . '/uninstall.php');
+        $this->assertNotFalse($uninstall);
+        $this->assertStringContainsString("delete_metadata('user', 0, 'user_history_last_login', '', true)", $uninstall);
+    }
+
     public function test_uninstall_does_not_wipe_history_by_default(): void
     {
         $uninstall = file_get_contents(dirname(__DIR__, 2) . '/uninstall.php');
@@ -455,6 +505,14 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertNotFalse($notes);
 
         return $notes;
+    }
+
+    private function userDirectorySource(): string
+    {
+        $directory = file_get_contents(dirname(__DIR__, 2) . '/includes/class-user-directory.php');
+        $this->assertNotFalse($directory);
+
+        return $directory;
     }
 
     private function updaterSource(): string

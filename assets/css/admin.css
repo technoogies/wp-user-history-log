@@ -416,3 +416,15 @@
     color: #1e4620;
     text-decoration: none;
 }
+
+.column-user_history_last_login {
+    white-space: nowrap;
+}
+
+.user-history-duplicates h3 {
+    margin: 1.2em 0 0.4em;
+}
+
+.user-history-duplicates table {
+    margin-bottom: 1em;
+}

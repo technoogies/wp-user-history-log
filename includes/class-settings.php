@@ -122,6 +122,17 @@ class User_History_Settings {
             [User_History_Username_Restrictions::get_instance(), 'render_settings_page'],
             3
         );
+
+        require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-user-directory.php';
+        add_submenu_page(
+            self::MENU_SLUG,
+            __('Duplicate users', 'user-history'),
+            __('Duplicates', 'user-history'),
+            $capability,
+            User_History_User_Directory::MENU_SLUG,
+            [User_History_User_Directory::get_instance(), 'render_page'],
+            4
+        );
     }
 
     /**

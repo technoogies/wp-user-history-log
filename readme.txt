@@ -4,7 +4,7 @@ Tags: user history, user log, audit log, change username, user tracking
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.10.0
+Stable tag: 1.11.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -29,6 +29,7 @@ User History tracks all changes made to user profiles and displays a complete hi
 * **Username Restrictions** - Optional registration username rules (off by default) with a Test Usernames tool
 * **Activity Log** - Optional site-wide log of content, media, comments, users, logins, extensions, and settings (off by default)
 * **Unique nicenames for new accounts** - New users get a nicename from display name or first+last; never the username; unique suffix if needed. Existing accounts are not rewritten
+* **Staff profile photos** - Optional setting to turn off Gravatar and profile photos for staff (off by default). Subscribers and customers keep their photos
 * **GitHub updates** - Plugins screen shows updates from this repo's public GitHub Releases
 * **Privacy Export** - WordPress personal-data export includes account history; erasure keeps the audit trail unless explicitly allowed
 * **Multisite Compatible** - Works with WordPress multisite installations
@@ -141,6 +142,10 @@ For new accounts only, the plugin slugs the nicename from the display name, or f
 
 This plugin is not listed on WordPress.org. After a GitHub Release is published for a newer Version, the Plugins screen shows the update. Click Check for updates next to the plugin if you just published a Release. No GitHub token is required. The Release tag should match Version: (1.9.0 or v1.9.0).
 
+= How do I turn off Gravatar for staff? =
+
+Open User History → Settings and check Turn off Gravatar and profile photos for staff. It stays unchecked until you do that. Staff means people who can edit content or manage the site, such as administrators, editors, authors, contributors, and shop managers. Their photo becomes a blank image from this site, so the browser does not load Gravatar. Subscribers and customers keep their photos. The user_history_disable_staff_gravatar filter can change the choice for one user.
+
 = How do I restrict registration usernames? =
 
 Open User History → Username Restrictions and turn the feature on. It stays off until you do. Block exact names or fragments, optionally disallow spaces, and use Test Usernames to see the same reasons. Existing accounts are never renamed. Users → Add New and Change Username bypass the rules unless you also apply them to administrators. Restrict Usernames settings are imported once if present; the switch is not turned on automatically.
@@ -152,6 +157,11 @@ Open User History → Username Restrictions and turn the feature on. It stays of
 3. Search results showing users found by previous email/username
 
 == Changelog ==
+
+= 1.11.0 =
+* Added an optional Settings checkbox to turn off Gravatar and profile photos for staff
+* Left the checkbox off by default, so existing sites keep showing photos until an operator opts in
+* Subscribers and customers keep their photos. The user_history_disable_staff_gravatar filter can override one user
 
 = 1.10.0 =
 * Sessions lists the newest login first and shows 25 sessions until Load Pages is clicked
@@ -263,6 +273,9 @@ Open User History → Username Restrictions and turn the feature on. It stays of
 * Account History display on user edit page
 
 == Upgrade Notice ==
+
+= 1.11.0 =
+Adds an optional checkbox to turn off Gravatar and profile photos for staff. It stays off until you check it. Subscribers and customers are unchanged.
 
 = 1.10.0 =
 The Sessions tab shows the 25 newest sessions first. Load Pages shows older sessions 100 at a time. Nothing is deleted. New sessions record a public client IP when the server address is the proxy. Existing session rows keep their old IP until they end.

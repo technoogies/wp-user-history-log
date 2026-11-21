@@ -47,6 +47,7 @@ function user_history_uninstall_current_site() {
     delete_option('user_history_retention_days');
     delete_option('user_history_collect_ip');
     delete_option('user_history_login_tracking_enabled');
+    delete_option('user_history_disable_staff_gravatar');
     delete_option('user_history_locked_message');
     delete_option('user_history_migrated_lock');
     delete_option('user_history_dashboard_access_enabled');

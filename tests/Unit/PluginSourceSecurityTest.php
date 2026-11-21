@@ -205,6 +205,29 @@ final class PluginSourceSecurityTest extends TestCase
             "/user_history_login_tracking_enabled',\s*'1'/",
             $settings
         );
+        $this->assertStringContainsString("get_option(User_History_Staff_Avatars::OPTION_KEY, '0')", $settings);
+        $this->assertStringContainsString('Turn off Gravatar and profile photos for staff', $settings);
+    }
+
+    public function test_staff_gravatar_stays_off_until_an_operator_enables_it(): void
+    {
+        $avatars = $this->staffAvatarSource();
+
+        $this->assertStringContainsString("if (!defined('ABSPATH'))", $avatars);
+        $this->assertStringContainsString("OPTION_KEY = 'user_history_disable_staff_gravatar'", $avatars);
+        $this->assertStringContainsString("get_option(self::OPTION_KEY, '0')", $avatars);
+        $this->assertStringContainsString("apply_filters('user_history_disable_staff_gravatar'", $avatars);
+        $this->assertStringContainsString("includes_url('images/blank.gif')", $avatars);
+        $this->assertStringNotContainsString('CREATE TABLE', $avatars);
+        $this->assertStringNotContainsString('TRUNCATE', $avatars);
+        $this->assertStringNotContainsString('wp_ajax_nopriv_', $avatars);
+        $this->assertStringNotContainsString('gravatar.com', $avatars);
+        $this->assertStringContainsString('boot_staff_avatars', $this->source);
+        $this->assertStringContainsString('class-staff-avatars.php', $this->source);
+
+        $uninstall = file_get_contents(dirname(__DIR__, 2) . '/uninstall.php');
+        $this->assertNotFalse($uninstall);
+        $this->assertStringContainsString("delete_option('user_history_disable_staff_gravatar')", $uninstall);
     }
 
     public function test_uninstall_does_not_wipe_history_by_default(): void
@@ -350,6 +373,14 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertNotFalse($nicename);
 
         return $nicename;
+    }
+
+    private function staffAvatarSource(): string
+    {
+        $avatars = file_get_contents(dirname(__DIR__, 2) . '/includes/class-staff-avatars.php');
+        $this->assertNotFalse($avatars);
+
+        return $avatars;
     }
 
     private function updaterSource(): string

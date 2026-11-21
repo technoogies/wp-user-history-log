@@ -22,6 +22,7 @@ A WordPress plugin that records account history and helps admins manage users: c
 - **Registration username rules** - Optional rules for new registrations (off by default) with a Test Usernames tool
 - **Activity Log** - Optional site-wide log of content, media, comments, users, logins, extensions, and settings (off by default)
 - **Unique nicenames for new accounts** - New users get a URL-friendly nicename from display name or first+last; it is never the username and stays unique. Existing accounts are not rewritten
+- **Staff profile photos** - Optional Settings checkbox (off by default) that turns off Gravatar and profile photos for staff. Subscribers and customers keep their photos
 - **GitHub Release updates** - The Plugins screen shows updates from this repo’s public GitHub Releases (no WordPress.org listing and no GitHub token)
 - **Privacy Export** - WordPress personal-data export includes decrypted account history; erasure keeps the audit trail unless an operator explicitly allows removal
 - **Multisite Compatible** - Works with WordPress multisite installations
@@ -197,6 +198,12 @@ add_filter('user_history_collect_ip', function ($collect) {
 add_filter('user_history_activity_log_entry', function ($entry) {
     return $entry;
 });
+
+// Turn off Gravatar and profile photos for one user.
+// Default is true only when the Settings checkbox is on and the user is staff.
+add_filter('user_history_disable_staff_gravatar', function ($disable, $user_id) {
+    return (bool) $disable;
+}, 10, 2);
 ```
 
 ## Screenshots
@@ -235,11 +242,20 @@ If Remove Dashboard Access options exist (`rda_*`), they are copied once. The re
 
 Administrators bypass the rules on **Users → Add New** and **Change Username** unless **Also apply the rules to usernames chosen by administrators** is on. The `user_history_validate_username` filter can add a custom rule. Restrict Usernames settings (`c2c_restrict_usernames`) are imported once; the switch stays off.
 
+### Staff profile photos
+
+**User History → Settings** has **Turn off Gravatar and profile photos for staff** unchecked by default. Leave it unchecked and photos stay as they are today. Check it and staff accounts get a blank image from this site instead of Gravatar or another profile photo. Staff means people who can edit content or manage the site: administrators, editors, authors, contributors, shop managers, and similar roles. Subscribers and customers keep their photos. The `user_history_disable_staff_gravatar` filter can override that choice for one user.
+
 ### New account nicenames
 
 New accounts only. The plugin slugs the nicename from display name, or from first+last when that is what **Users → Add New** provides. The value is never equal to the username. If that slug is already taken, it adds `-2`, `-3`, and so on. Existing `user_nicename` values stay as they are. You can still edit Nicename under Nickname on the user profile.
 
 ## Changelog
+
+### 1.11.0
+- Added an optional Settings checkbox to turn off Gravatar and profile photos for staff
+- Left the checkbox off by default, so existing sites keep showing photos until an operator opts in
+- Subscribers and customers keep their photos. The `user_history_disable_staff_gravatar` filter can override one user
 
 ### 1.10.0
 - Sessions lists the newest login first and shows 25 sessions until Load Pages is clicked

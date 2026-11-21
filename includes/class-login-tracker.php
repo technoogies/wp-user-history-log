@@ -214,9 +214,7 @@ class User_History_Login_Tracker {
             wp_send_json_error(['message' => __('You are not allowed to view these sessions.', 'user-history')]);
         }
 
-        $sessions = class_exists('WP_Session_Tokens')
-            ? WP_Session_Tokens::get_instance($user_id)->get_all()
-            : [];
+        $sessions = $this->active_sessions_by_verifier($user_id);
         $partition = $this->partition_sessions_for_display($sessions, $page);
 
         wp_send_json_success(
@@ -541,6 +539,7 @@ class User_History_Login_Tracker {
      */
     public function render_sessions_tab($user, $sessions) {
         $user_id = (int) $user->ID;
+        $sessions = $this->sessions_with_verifiers($user_id, $sessions);
         $partition = $this->partition_sessions_for_display($sessions, 1);
         $verifier = $this->current_session_verifier($user_id);
 
@@ -588,6 +587,83 @@ class User_History_Login_Tracker {
     }
 
     /**
+     * Session rows keyed by the sha256 verifier stored in session_tokens.
+     *
+     * WP_Session_Tokens::get_all() runs array_values() and drops those keys.
+     * The logged-in cookie can be matched only against the verifier, and the
+     * verifier is never written into the page.
+     *
+     * @param int   $user_id  Profile user.
+     * @param array $sessions Sessions passed by the caller, often from get_all().
+     * @return array
+     */
+    private function sessions_with_verifiers($user_id, $sessions) {
+        if ($this->sessions_are_verifier_keyed($sessions)) {
+            return $sessions;
+        }
+
+        return $this->active_sessions_by_verifier($user_id);
+    }
+
+    /**
+     * @param array $sessions Session payloads.
+     * @return bool
+     */
+    private function sessions_are_verifier_keyed($sessions) {
+        if (!is_array($sessions) || $sessions === []) {
+            return false;
+        }
+
+        foreach ($sessions as $verifier => $session) {
+            if (!is_string($verifier) || !is_array($session) || !preg_match('/\A[a-f0-9]{64}\z/', $verifier)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Active session_tokens rows, still keyed by verifier.
+     *
+     * Mirrors WP_User_Meta_Session_Tokens::get_sessions(): legacy integer
+     * expirations become session arrays, and expired rows are left out.
+     * This does not write usermeta.
+     *
+     * @param int $user_id Profile user.
+     * @return array
+     */
+    private function active_sessions_by_verifier($user_id) {
+        $user_id = (int) $user_id;
+        if ($user_id < 1) {
+            return [];
+        }
+
+        $stored = get_user_meta($user_id, 'session_tokens', true);
+        if (!is_array($stored)) {
+            return [];
+        }
+
+        $sessions = [];
+        $now = time();
+        foreach ($stored as $verifier => $session) {
+            if (is_int($session)) {
+                $session = ['expiration' => $session];
+            }
+            if (!is_array($session)) {
+                continue;
+            }
+            if (!isset($session['expiration']) || (int) $session['expiration'] < $now) {
+                continue;
+            }
+
+            $sessions[(string) $verifier] = $session;
+        }
+
+        return $sessions;
+    }
+
+    /**
      * @param int $user_id Profile user.
      * @return string Sha256 verifier for this request's logged-in cookie, or empty.
      */
@@ -617,7 +693,12 @@ class User_History_Login_Tracker {
                 continue;
             }
 
-            $is_current = ($current_verifier !== '' && hash_equals($current_verifier, (string) $verifier));
+            $verifier = (string) $verifier;
+            $is_current = (
+                $current_verifier !== ''
+                && strlen($verifier) === strlen($current_verifier)
+                && hash_equals($current_verifier, $verifier)
+            );
             $is_expired = (isset($session['expiration']) && (int) $session['expiration'] < time());
             $row_class = $is_current ? ' session-current' : '';
 

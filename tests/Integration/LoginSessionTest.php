@@ -283,7 +283,7 @@ final class LoginSessionTest extends WP_Ajax_UnitTestCase
         $this->assertSame(130, count(WP_Session_Tokens::get_instance($subject)->get_all()));
         $this->assertSame($stored, get_user_meta($subject, 'session_tokens', true));
         $this->assertStringContainsString('user-history-count">130', $html);
-        $this->assertSame(25, substr_count($html, 'user-history-entry'));
+        $this->assertSame(25, substr_count($this->newestSessionMarkup($html), 'user-history-entry'));
         $this->assertStringContainsString('>Load Pages</button>', $html);
         $this->assertStringContainsString('>Log Out Everywhere</button>', $html);
         $this->assertStringNotContainsString('(current)', $html);
@@ -486,9 +486,26 @@ final class LoginSessionTest extends WP_Ajax_UnitTestCase
         return (string) ob_get_clean();
     }
 
+    private function newestSessionMarkup($html): string
+    {
+        $html = (string) $html;
+        $start = strpos($html, 'id="user-history-sessions-newest"');
+        $this->assertNotFalse($start);
+        $end = strpos($html, 'id="user-history-sessions-older"', $start);
+        $this->assertNotFalse($end);
+
+        return substr($html, $start, $end - $start);
+    }
+
     private function firstSessionIp($html): string
     {
-        $this->assertSame(1, preg_match('/<td class="column-ip">([^<]*)<\/td>/', (string) $html, $match));
+        $html = (string) $html;
+        $start = strpos($html, 'id="user-history-sessions-table"');
+        if ($start !== false) {
+            $html = substr($html, $start);
+        }
+
+        $this->assertSame(1, preg_match('/<td class="column-ip">([^<]*)<\/td>/', $html, $match));
 
         return html_entity_decode($match[1], ENT_QUOTES, 'UTF-8');
     }

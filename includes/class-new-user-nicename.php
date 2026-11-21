@@ -1,9 +1,13 @@
 <?php
 
 /**
- * Unique nicename generation for new WordPress accounts.
+ * Unique nicename generation.
  *
- * New users only. Existing user_nicename values are never rewritten.
+ * New accounts get a slug on insert. Profile saves do not rewrite an existing
+ * user_nicename. The Users screen button is the only bulk rewrite, and it
+ * calls nicename_for_existing_user() only when the current nicename still
+ * matches user_login.
+ *
  * Slug comes from display name or first+last, is never equal to user_login,
  * and gets a numeric suffix when needed. Sanitize and uniqueness reuse
  * User_History::sanitize_nicename_value() and User_History::is_nicename_unique().
@@ -97,6 +101,52 @@ class User_History_New_User_Nicename {
         }
 
         return $this->uniquify($seed, $login, (int) $user_id);
+    }
+
+    /**
+     * Whether a stored nicename is still the username.
+     *
+     * Comparison is case-insensitive, matching the rule that a nicename must
+     * not equal user_login. A different slug, including WordPress's default
+     * sanitize of the login, does not match.
+     *
+     * @param string $nicename Stored user_nicename.
+     * @param string $login    Stored user_login.
+     * @return bool
+     */
+    public function nicename_matches_login($nicename, $login) {
+        return $this->same_login((string) $nicename, (string) $login);
+    }
+
+    /**
+     * Build the new-account nicename for a user who already exists.
+     *
+     * Does not write to the database. Callers decide whether the current
+     * nicename is eligible to change.
+     *
+     * @param WP_User $user Existing account.
+     * @return string
+     */
+    public function nicename_for_existing_user($user) {
+        if (!$user instanceof WP_User) {
+            return '';
+        }
+
+        $login = (string) $user->user_login;
+
+        return $this->generate_unique_nicename(
+            [
+                'user_login'    => $login,
+                'user_nicename' => (string) $user->user_nicename,
+            ],
+            [
+                'user_login'    => $login,
+                'display_name'  => $user->display_name,
+                'first_name'    => $user->first_name,
+                'last_name'     => $user->last_name,
+            ],
+            (int) $user->ID
+        );
     }
 
     /**

@@ -22,7 +22,7 @@ final class GitHubReleaseUpdateIntegrationTest extends WP_UnitTestCase
         );
         $this->assertNotNull($checker);
         $this->assertSame(
-            '1.11.0',
+            '1.11.1',
             User_History_Update_Checker::normalize_release_tag(USER_HISTORY_VERSION)
         );
         $this->assertSame(

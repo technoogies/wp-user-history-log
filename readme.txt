@@ -4,7 +4,7 @@ Tags: user history, user log, audit log, change username, user tracking
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.11.0
+Stable tag: 1.11.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -28,7 +28,7 @@ User History tracks all changes made to user profiles and displays a complete hi
 * **Dashboard Access** - Optional /wp-admin restriction (off by default). Enabling requires manage_user_history and manage_options
 * **Username Restrictions** - Optional registration username rules (off by default) with a Test Usernames tool
 * **Activity Log** - Optional site-wide log of content, media, comments, users, logins, extensions, and settings (off by default)
-* **Unique nicenames for new accounts** - New users get a nicename from display name or first+last; never the username; unique suffix if needed. Existing accounts are not rewritten
+* **Unique nicenames** - New users get a nicename from display name or first+last; never the username; unique suffix if needed. Users has a button to rewrite older accounts whose nicename still matches the username. Accounts that already differ are skipped
 * **Profile photo** - Checkbox on each user profile, off until checked, that turns off that user's Gravatar and profile photo. Subscribers and staff are treated the same
 * **GitHub updates** - Plugins screen shows updates from this repo's public GitHub Releases
 * **Privacy Export** - WordPress personal-data export includes account history; erasure keeps the audit trail unless explicitly allowed
@@ -136,7 +136,11 @@ Open User History → Dashboard Access and turn on Restrict Dashboard Access. Th
 
 = How are nicenames set for new users? =
 
-For new accounts only, the plugin slugs the nicename from the display name, or from first and last name on Users → Add New. It is never the same as the username. If that slug is already used, a suffix such as -2 is added. Existing accounts keep their current nicename. You can still edit Nicename under Nickname on the profile.
+For new accounts, the plugin slugs the nicename from the display name, or from first and last name on Users → Add New. It is never the same as the username. If that slug is already used, a suffix such as -2 is added. Saving a profile does not rewrite an existing nicename. You can still edit Nicename under Nickname on the profile.
+
+= How do I update old nicenames that match the username? =
+
+On Users, click Rewrite matching nicenames. The next screen tells you how many accounts still use the username as the nicename and how many already differ. Click Update matching nicenames and confirm. Only accounts whose nicename is still the same as the username are changed. The new value follows the same display-name or first-and-last rule as a new account, and it will not stay equal to the username. Usernames are not changed. You need to be able to edit users.
 
 = How do I get plugin updates? =
 
@@ -157,6 +161,12 @@ Open User History → Username Restrictions and turn the feature on. It stays of
 3. Search results showing users found by previous email/username
 
 == Changelog ==
+
+= 1.11.1 =
+* Added a Users screen button to rewrite nicenames that still match the username
+* The button counts matches first, then asks you to confirm before it writes
+* After the update, Users shows how many nicenames changed and how many were skipped
+* Accounts whose nicename already differs from the username are left alone
 
 = 1.11.0 =
 * Added a profile checkbox to turn off Gravatar and the profile photo for that user
@@ -273,6 +283,9 @@ Open User History → Username Restrictions and turn the feature on. It stays of
 * Account History display on user edit page
 
 == Upgrade Notice ==
+
+= 1.11.1 =
+Users has a button to rewrite nicenames that still match the username. It asks you to confirm, then shows how many changed and how many were skipped. Other nicenames stay as they are.
 
 = 1.11.0 =
 Each profile has a checkbox to turn off that user's Gravatar and profile photo. It stays unchecked until you check it. Other users are not changed.

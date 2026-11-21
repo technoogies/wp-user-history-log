@@ -7,6 +7,10 @@
     display: none;
 }
 
+.tablenav .actions .user-history-rewrite-nicenames {
+    margin-left: 8px;
+}
+
 /* Main section container */
 .user-history-section {
     margin-top: 30px;

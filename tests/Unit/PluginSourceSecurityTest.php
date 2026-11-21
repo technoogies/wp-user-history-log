@@ -94,6 +94,26 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertStringNotContainsString('ipinfo.io', $newNicename);
         $this->assertStringNotContainsString('wp_update_user', $newNicename);
         $this->assertStringNotContainsString('get_users', $newNicename);
+        $this->assertStringContainsString('nicename_for_existing_user', $newNicename);
+
+        $rewrite = $this->nicenameRewriteSource();
+        $this->assertStringContainsString("if (!defined('ABSPATH'))", $rewrite);
+        $this->assertStringContainsString("current_user_can('edit_users')", $rewrite);
+        $this->assertStringContainsString("current_user_can('manage_network_users')", $rewrite);
+        $this->assertStringContainsString("current_user_can('edit_user'", $rewrite);
+        $this->assertStringContainsString('wp_verify_nonce', $rewrite);
+        $this->assertStringContainsString('user_history_nicename_rewrite_preview', $rewrite);
+        $this->assertStringContainsString('user_history_nicename_rewrite_confirm', $rewrite);
+        $this->assertStringContainsString("add_action('load-users.php'", $rewrite);
+        $this->assertStringContainsString('REQUEST_METHOD', $rewrite);
+        $this->assertStringContainsString('nicename_matches_login', $rewrite);
+        $this->assertStringContainsString('nicename_for_existing_user', $rewrite);
+        $this->assertStringNotContainsString('wp_ajax_nopriv_', $rewrite);
+        $this->assertStringNotContainsString('TRUNCATE', $rewrite);
+        $this->assertStringNotContainsString('innerHTML', $rewrite);
+        $this->assertStringNotContainsString('ipinfo.io', $rewrite);
+        $this->assertStringContainsString('boot_nicename_rewrite', $this->source);
+        $this->assertStringContainsString('class-nicename-rewrite.php', $this->source);
 
         $activity = $this->activitySource();
         $this->assertStringContainsString("wp_ajax_' . self::CLEAR_ACTION", $activity);
@@ -373,6 +393,14 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertNotFalse($activity);
 
         return $activity;
+    }
+
+    private function nicenameRewriteSource(): string
+    {
+        $rewrite = file_get_contents(dirname(__DIR__, 2) . '/includes/class-nicename-rewrite.php');
+        $this->assertNotFalse($rewrite);
+
+        return $rewrite;
     }
 
     private function newUserNicenameSource(): string

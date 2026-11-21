@@ -1,6 +1,6 @@
 # User Management & History
 
-A WordPress plugin that records account history and helps admins manage users: change username, edit nicename, delete user, lock or unlock accounts, and monitor logins and sessions. It also offers dashboard access control, registration username rules, a site-wide activity log, unique nicenames for new accounts, and updates from GitHub Releases.
+A WordPress plugin that records account history and helps admins manage users: change username, edit nicename, delete user, lock or unlock accounts, and monitor logins and sessions. It also offers dashboard access control, registration username rules, a site-wide activity log, unique nicenames, and updates from GitHub Releases.
 
 <img width="1547" height="1071" alt="image" src="https://github.com/user-attachments/assets/1ba77413-4e63-416b-8ca4-242e499acadb" />
 
@@ -21,7 +21,7 @@ A WordPress plugin that records account history and helps admins manage users: c
 - **Dashboard Access** - Optional `/wp-admin` restriction (off by default). Enabling it requires `manage_user_history` and `manage_options`
 - **Registration username rules** - Optional rules for new registrations (off by default) with a Test Usernames tool
 - **Activity Log** - Optional site-wide log of content, media, comments, users, logins, extensions, and settings (off by default)
-- **Unique nicenames for new accounts** - New users get a URL-friendly nicename from display name or first+last; it is never the username and stays unique. Existing accounts are not rewritten
+- **Unique nicenames** - New users get a URL-friendly nicename from display name or first+last; it is never the username and stays unique. Users has a button to rewrite older accounts whose nicename still matches the username. Accounts that already differ are skipped
 - **Profile photo** - A checkbox on each user profile, off until checked, that turns off that user's Gravatar and profile photo. Subscribers and staff are treated the same
 - **GitHub Release updates** - The Plugins screen shows updates from this repo’s public GitHub Releases (no WordPress.org listing and no GitHub token)
 - **Privacy Export** - WordPress personal-data export includes decrypted account history; erasure keeps the audit trail unless an operator explicitly allows removal
@@ -246,11 +246,19 @@ Administrators bypass the rules on **Users → Add New** and **Change Username**
 
 On **Users → Edit user**, and on your own profile, **Profile photo** has **Turn off Gravatar and profile photo for this user**. It stays unchecked until you check it. Only that user gets a blank image from this site. Subscribers and staff work the same way. There is no site-wide switch and no new role. The `user_history_disable_gravatar` filter can override the choice for one user.
 
-### New account nicenames
+### Nicenames
 
-New accounts only. The plugin slugs the nicename from display name, or from first+last when that is what **Users → Add New** provides. The value is never equal to the username. If that slug is already taken, it adds `-2`, `-3`, and so on. Existing `user_nicename` values stay as they are. You can still edit Nicename under Nickname on the user profile.
+New accounts get a nicename from the display name, or from first and last name on **Users → Add New**. The value is never equal to the username. If that slug is already taken, it adds `-2`, `-3`, and so on. Saving a profile does not rewrite an existing nicename. You can still edit Nicename under Nickname.
+
+**Users** has **Rewrite matching nicenames**. That button only counts. The next screen shows how many accounts still use the username as the nicename and how many already differ. **Update matching nicenames** asks you to confirm, then rewrites only the matches, using the same display-name or first-and-last rule. Usernames are not changed. You need to be allowed to edit users.
 
 ## Changelog
+
+### 1.11.1
+- Added a Users screen button to rewrite nicenames that still match the username
+- The button counts matches first, then asks for confirmation before it writes
+- After the update, Users shows how many nicenames changed and how many were skipped
+- Accounts whose nicename already differs from the username are left alone
 
 ### 1.11.0
 - Added a profile checkbox to turn off Gravatar and the profile photo for that user

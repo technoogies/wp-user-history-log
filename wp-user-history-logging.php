@@ -4,7 +4,7 @@
  * Plugin Name: WP User History Log
  * Plugin URI: https://github.com/technoogies/wp-user-history-log
  * Description: Tracks changes made to user accounts (name, email, username, nicename, etc.) Adds NiceName edit field and displays a history log on the user edit page.
- * Version: 1.11.0
+ * Version: 1.11.1
  * Author: Technoogies / gpt 5.1 codex | from WPZOOM user-history
  * Author URI: https://technoogies.com
  * License: GPL v2 or later
@@ -270,6 +270,7 @@ class User_History {
         $this->boot_username_restrictions();
         $this->boot_activity_log();
         $this->boot_new_user_nicename();
+        $this->boot_nicename_rewrite();
         $this->boot_update_checker();
     }
 
@@ -2257,6 +2258,12 @@ class User_History {
         User_History_New_User_Nicename::get_instance($this);
     }
 
+    private function boot_nicename_rewrite() {
+        require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-new-user-nicename.php';
+        require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-nicename-rewrite.php';
+        User_History_Nicename_Rewrite::get_instance($this);
+    }
+
     private function boot_profile_photo() {
         require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-profile-photo.php';
         User_History_Profile_Photo::get_instance();
@@ -3390,6 +3397,7 @@ require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-login-tracker.php';
 require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-dashboard-access.php';
 require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-username-restrictions.php';
 require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-new-user-nicename.php';
+require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-nicename-rewrite.php';
 require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-profile-photo.php';
 require_once USER_HISTORY_PLUGIN_DIR . 'includes/class-update-checker.php';
 

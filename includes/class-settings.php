@@ -161,17 +161,6 @@ class User_History_Settings {
             ]
         );
 
-        register_setting(
-            self::OPTION_GROUP,
-            User_History_Staff_Avatars::OPTION_KEY,
-            [
-                'type'              => 'string',
-                'sanitize_callback' => [$this, 'sanitize_staff_gravatar'],
-                'default'           => '0',
-                'show_in_rest'      => false,
-            ]
-        );
-
         add_settings_section(
             'user_history_privacy',
             __('Privacy', 'user-history'),
@@ -193,21 +182,6 @@ class User_History_Settings {
             [$this, 'render_login_tracking_field'],
             self::MENU_SLUG,
             'user_history_privacy'
-        );
-
-        add_settings_section(
-            'user_history_avatars',
-            __('Profile photos', 'user-history'),
-            [$this, 'render_avatars_section'],
-            self::MENU_SLUG
-        );
-
-        add_settings_field(
-            User_History_Staff_Avatars::OPTION_KEY,
-            __('Gravatar and profile photos', 'user-history'),
-            [$this, 'render_staff_gravatar_field'],
-            self::MENU_SLUG,
-            'user_history_avatars'
         );
 
         add_settings_section(
@@ -247,14 +221,6 @@ class User_History_Settings {
      * @return string '1' or '0'. Default stays off.
      */
     public function sanitize_login_tracking($value) {
-        return $this->option_flag_is_enabled($value) ? '1' : '0';
-    }
-
-    /**
-     * @param mixed $value Raw submitted value.
-     * @return string '1' or '0'. Default stays off.
-     */
-    public function sanitize_staff_gravatar($value) {
         return $this->option_flag_is_enabled($value) ? '1' : '0';
     }
 
@@ -319,32 +285,6 @@ class User_History_Settings {
         </label>
         <p class="description">
             <?php esc_html_e('Off by default. Failed logins are stored only when the typed username or email matches a real account. Passwords are never stored.', 'user-history'); ?>
-        </p>
-        <?php
-    }
-
-    /**
-     * Profile-photo section intro.
-     */
-    public function render_avatars_section() {
-        echo '<p>' . esc_html__('Staff profile photos stay as they are until you opt in. Subscribers and customers are not changed.', 'user-history') . '</p>';
-    }
-
-    /**
-     * Gravatar / profile-photo checkbox. Default off.
-     */
-    public function render_staff_gravatar_field() {
-        $option_key = User_History_Staff_Avatars::OPTION_KEY;
-        $option_on = $this->option_flag_is_enabled(get_option(User_History_Staff_Avatars::OPTION_KEY, '0'));
-
-        ?>
-        <label>
-            <input type="hidden" name="<?php echo esc_attr($option_key); ?>" value="0" />
-            <input type="checkbox" name="<?php echo esc_attr($option_key); ?>" value="1" <?php checked($option_on); ?> />
-            <?php esc_html_e('Turn off Gravatar and profile photos for staff', 'user-history'); ?>
-        </label>
-        <p class="description">
-            <?php esc_html_e('Off by default. When checked, administrators, editors, authors, contributors, shop managers, and anyone who can edit content or manage the site get a blank local image instead of Gravatar or another profile photo. Subscribers and customers keep their photos. The user_history_disable_staff_gravatar filter can override this for one user.', 'user-history'); ?>
         </p>
         <?php
     }

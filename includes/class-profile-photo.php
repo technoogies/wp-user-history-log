@@ -1,19 +1,19 @@
 <?php
 
 /**
- * Optional Gravatar and profile-photo suppression for staff accounts.
+ * Per-user Gravatar and profile-photo control.
  *
- * Off until an operator checks the Settings box. Subscribers, customers,
- * and guests keep the photos WordPress already shows. No new tables.
+ * Unchecked until someone checks that user. Subscribers and staff are the
+ * same: only the checked account is blank. No new role and no new tables.
  */
 
 if (!defined('ABSPATH')) {
     exit;
 }
 
-class User_History_Staff_Avatars {
+class User_History_Profile_Photo {
 
-    const OPTION_KEY = 'user_history_disable_staff_gravatar';
+    const META_KEY = 'user_history_disable_gravatar';
 
     /**
      * @var self|null
@@ -39,13 +39,72 @@ class User_History_Staff_Avatars {
     }
 
     private function __construct() {
+        add_action('show_user_profile', [$this, 'render_profile_field']);
+        add_action('edit_user_profile', [$this, 'render_profile_field']);
+        add_action('personal_options_update', [$this, 'save_profile_field']);
+        add_action('edit_user_profile_update', [$this, 'save_profile_field']);
         add_filter('pre_get_avatar_data', [$this, 'filter_avatar_data'], 100, 2);
         add_filter('get_avatar_data', [$this, 'filter_avatar_data'], 100, 2);
         add_filter('get_avatar', [$this, 'filter_avatar_html'], 100, 6);
     }
 
     /**
-     * Replace a staff avatar URL with a local blank image.
+     * Checkbox on the user's own profile and on Users → Edit user.
+     *
+     * @param WP_User $user Profile being edited.
+     */
+    public function render_profile_field($user) {
+        if (!$user instanceof WP_User || !$this->current_operator_can_edit((int) $user->ID)) {
+            return;
+        }
+
+        $checked = $this->user_has_photo_disabled((int) $user->ID);
+        ?>
+        <h2><?php esc_html_e('Profile photo', 'user-history'); ?></h2>
+        <table class="form-table" role="presentation">
+            <tr>
+                <th scope="row"><?php esc_html_e('Gravatar', 'user-history'); ?></th>
+                <td>
+                    <label>
+                        <input type="hidden" name="<?php echo esc_attr(self::META_KEY); ?>" value="0" />
+                        <input type="checkbox" name="<?php echo esc_attr(self::META_KEY); ?>" id="user_history_disable_gravatar" value="1" <?php checked($checked); ?> />
+                        <?php esc_html_e('Turn off Gravatar and profile photo for this user', 'user-history'); ?>
+                    </label>
+                    <p class="description">
+                        <?php esc_html_e('Unchecked until you check it. Only this user gets a blank image from this site. Other users keep their photos.', 'user-history'); ?>
+                    </p>
+                </td>
+            </tr>
+        </table>
+        <?php
+    }
+
+    /**
+     * Save the checkbox from the profile form. Missing POST leaves the value alone.
+     *
+     * @param int $user_id Profile being saved.
+     */
+    public function save_profile_field($user_id) {
+        $user_id = (int) $user_id;
+        if ($user_id < 1 || !isset($_POST[self::META_KEY])) {
+            return;
+        }
+
+        if (!$this->current_operator_can_edit($user_id)) {
+            return;
+        }
+
+        $disable = $this->flag_is_enabled(wp_unslash($_POST[self::META_KEY]));
+        if ($disable) {
+            update_user_meta($user_id, self::META_KEY, '1');
+            return;
+        }
+
+        delete_user_meta($user_id, self::META_KEY);
+    }
+
+    /**
+     * Replace a disabled user's avatar URL with a local blank image.
      *
      * @param mixed $args        Avatar arguments from WordPress.
      * @param mixed $id_or_email User ID, email, user, post, or comment.
@@ -63,7 +122,7 @@ class User_History_Staff_Avatars {
     }
 
     /**
-     * Replace plugin profile-photo markup for a suppressed user.
+     * Replace plugin profile-photo markup for a disabled user.
      *
      * @param mixed $avatar      Existing avatar HTML.
      * @param mixed $id_or_email User ID, email, user, post, or comment.
@@ -102,7 +161,7 @@ class User_History_Staff_Avatars {
     /**
      * Whether this user's Gravatar or profile photo should be turned off.
      *
-     * The filter receives false until the setting is on and the user is staff.
+     * The filter receives false until that user's checkbox is checked.
      * Return true to suppress, false to leave the photo alone.
      *
      * @param int $user_id Avatar subject. 0 when the address is not a user.
@@ -110,46 +169,30 @@ class User_History_Staff_Avatars {
      */
     public function should_disable($user_id) {
         $user_id = (int) $user_id;
-        $disable = ($user_id > 0 && $this->is_enabled() && $this->is_staff($user_id));
+        $disable = $user_id > 0 && $this->user_has_photo_disabled($user_id);
 
-        return (bool) apply_filters('user_history_disable_staff_gravatar', $disable, $user_id);
+        return (bool) apply_filters('user_history_disable_gravatar', $disable, $user_id);
     }
 
     /**
-     * Staff can edit content or manage the site. Subscribers and customers do not.
-     *
      * @param int $user_id User ID.
      * @return bool
      */
-    public function is_staff($user_id) {
+    public function user_has_photo_disabled($user_id) {
         $user_id = (int) $user_id;
         if ($user_id < 1) {
             return false;
         }
 
-        if (is_multisite() && is_super_admin($user_id)) {
-            return true;
-        }
-
-        $user = get_userdata($user_id);
-        if (!$user instanceof WP_User) {
-            return false;
-        }
-
-        foreach ($this->staff_capabilities() as $capability) {
-            if (!empty($user->allcaps[$capability])) {
-                return true;
-            }
-        }
-
-        return false;
+        return $this->flag_is_enabled(get_user_meta($user_id, self::META_KEY, true));
     }
 
     /**
+     * @param int $user_id Profile user.
      * @return bool
      */
-    public function is_enabled() {
-        return $this->option_flag_is_enabled(get_option(self::OPTION_KEY, '0'));
+    public function current_operator_can_edit($user_id) {
+        return $user_id > 0 && current_user_can('edit_user', $user_id);
     }
 
     /**
@@ -160,12 +203,12 @@ class User_History_Staff_Avatars {
     }
 
     /**
-     * @param mixed                $id_or_email User ID, email, user, post, or comment.
-     * @param array<string,mixed>  $args        Avatar arguments.
+     * @param mixed               $id_or_email User ID, email, user, post, or comment.
+     * @param array<string,mixed> $args        Avatar arguments.
      * @return bool
      */
     private function should_suppress($id_or_email, $args) {
-        if ($this->filtering || !$this->may_disable()) {
+        if ($this->filtering) {
             return false;
         }
 
@@ -174,19 +217,6 @@ class User_History_Staff_Avatars {
         $this->filtering = false;
 
         return $disable;
-    }
-
-    /**
-     * Skip the user lookup when nothing would change the photo.
-     *
-     * @return bool
-     */
-    private function may_disable() {
-        if ($this->is_enabled()) {
-            return true;
-        }
-
-        return false !== has_filter('user_history_disable_staff_gravatar');
     }
 
     /**
@@ -237,29 +267,10 @@ class User_History_Staff_Avatars {
     }
 
     /**
-     * Capabilities that mean the account works on the site.
-     *
-     * @return array<int,string>
-     */
-    private function staff_capabilities() {
-        return [
-            'edit_posts',
-            'edit_pages',
-            'publish_posts',
-            'upload_files',
-            'moderate_comments',
-            'manage_categories',
-            'manage_options',
-            'edit_users',
-            'manage_woocommerce',
-        ];
-    }
-
-    /**
-     * @param mixed $value Stored option or submitted flag.
+     * @param mixed $value Stored meta or submitted flag.
      * @return bool
      */
-    private function option_flag_is_enabled($value) {
+    private function flag_is_enabled($value) {
         if (is_bool($value)) {
             return $value;
         }

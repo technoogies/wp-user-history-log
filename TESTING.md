@@ -48,7 +48,7 @@ The suite checks that:
 - activity log stays off by default, records only enabled event groups, reuses the daily prune hook for both tables, refuses TRUNCATE, and requires manage_user_history for the page and transactional Clear Activity Log;
 - nicename edits use `edit_users` / `edit_user` instead of hard-coded administrator role slugs;
 - new accounts get a unique nicename from display name or first+last that is never the username; existing nicenames stay unchanged;
-- staff Gravatar and profile photos stay on until the Settings checkbox is enabled, subscribers and customers keep their photos, and user_history_disable_staff_gravatar can override one user;
+- a user's Gravatar and profile photo stay on until that user's profile checkbox is checked, subscribers and staff are treated the same, and user_history_disable_gravatar can override one user;
 - the empty-history notice is built with text nodes instead of a jQuery `.html()` string;
 - plugin header Version matches the readme stable tag;
 - GitHub Release tags 1.8.0 and v1.8.0 normalize to the same version;

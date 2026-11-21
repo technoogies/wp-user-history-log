@@ -4,7 +4,7 @@
  * Plugin Name: WP User History Log
  * Plugin URI: https://github.com/technoogies/wp-user-history-log
  * Description: Tracks changes made to user accounts (name, email, username, nicename, etc.) Adds NiceName edit field and displays a history log on the user edit page.
- * Version: 1.12.0
+ * Version: 1.12.1
  * Author: Technoogies / gpt 5.1 codex | from WPZOOM user-history
  * Author URI: https://technoogies.com
  * License: GPL v2 or later
@@ -988,7 +988,7 @@ class User_History {
 						   value="<?php echo esc_attr($user->user_nicename); ?>"
 						   aria-describedby="user-history-nicename-description" />
 					<p class="description" id="user-history-nicename-description">
-						<?php esc_html_e('Must be unique, URL-friendly, and can only be changed by users who can edit accounts.', 'user-history'); ?>
+						<?php esc_html_e('Must be unique and URL-friendly. You can edit your own nicename. Changing someone else still requires permission to edit that account.', 'user-history'); ?>
 					</p>
 				</td>
 			</tr>
@@ -2127,7 +2127,25 @@ class User_History {
         return $this->table_uses_required_engine($table);
     }
 
+    /**
+     * Own profile, or an operator who can already edit that account.
+     *
+     * A subscriber can change their nicename and nothing else this plugin
+     * gates. Editing another user still needs edit_users and edit_user.
+     *
+     * @param int $user_id Profile being viewed or saved.
+     * @return bool
+     */
     private function current_operator_can_change_nicename($user_id) {
+        $user_id = (int) $user_id;
+        if ($user_id < 1 || !is_user_logged_in()) {
+            return false;
+        }
+
+        if (get_current_user_id() === $user_id && current_user_can('edit_user', $user_id)) {
+            return true;
+        }
+
         return current_user_can('edit_users') && $this->user_can_manage_history($user_id);
     }
 

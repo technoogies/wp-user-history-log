@@ -46,9 +46,9 @@ The suite checks that:
 - dashboard access stays off by default, does not auto-enable when Remove Dashboard Access is present, requires manage_user_history and manage_options to enable, keeps AJAX unlocked unless opted in, and matches allowlist wildcards without treating them as registered admin pages;
 - username restrictions stay off by default, do not auto-enable from Restrict Usernames, never rename existing accounts, apply to Change Username only when apply-to-admins is on, and expose user_history_validate_username;
 - activity log stays off by default, records only enabled event groups, reuses the daily prune hook for both tables, refuses TRUNCATE, and requires manage_user_history for the page and transactional Clear Activity Log;
-- nicename edits use `edit_users` / `edit_user` instead of hard-coded administrator role slugs;
+- a user can edit only their own nicename; editing another account still requires `edit_users` and `edit_user`, not a hard-coded administrator role slug;
 - new accounts get a unique nicename from display name or first+last that is never the username; profile saves do not rewrite an existing nicename;
-- Users → Rewrite matching nicenames only counts, and the confirm step rewrites a nicename only when it still equals the username, then reports how many changed and how many were skipped;
+- Users → Rewrite matching nicenames posts from the GET users list, only counts, and the confirm step rewrites a nicename only when it still equals the username (including a-addavies with first name A and last name D Davies), then reports how many changed and how many were skipped;
 - a user's Gravatar and profile photo stay on until that user's profile checkbox is checked, subscribers and staff are treated the same, and user_history_disable_gravatar can override one user;
 - staff notes and tags are user meta, visible only to people who can edit users, with an All Users tag filter, and personal-data erasure removes them without deleting account history;
 - the empty-history notice is built with text nodes instead of a jQuery `.html()` string;

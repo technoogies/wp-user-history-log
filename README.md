@@ -10,7 +10,7 @@ A WordPress plugin that records account history and helps admins manage users: c
 - **Account History** - Logs changes to username, email, display name, nicename, first/last name, nickname, website, bio, and role
 - **Password Change Logging** - Records when passwords are changed (without storing any password data)
 - **Change Username** - Change usernames from the user edit page (WordPress normally does not allow this)
-- **Edit Nicename** - Edit nicename on the user profile; the field sits under Nickname
+- **Edit Nicename** - Edit nicename under Nickname. You can edit your own. Editing someone else's still requires permission to edit that account
 - **Delete User** - Delete User button on the user edit page
 - **Search by Previous Values** - Find users on the All Users page by their old email or username
 - **See Who Made Changes** - Each log entry shows whether the user changed their own profile or if an admin made the change
@@ -257,11 +257,16 @@ A personal-data export includes the note and tags. Erasing personal data removes
 
 ### Nicenames
 
-New accounts get a nicename from the display name, or from first and last name on **Users → Add New**. The value is never equal to the username. If that slug is already taken, it adds `-2`, `-3`, and so on. Saving a profile does not rewrite an existing nicename. You can still edit Nicename under Nickname.
+New accounts get a nicename from the display name, or from first and last name on **Users → Add New**. The value is never equal to the username. If that slug is already taken, it adds `-2`, `-3`, and so on. Saving the rest of a profile does not rewrite an existing nicename. Nicename stays under Nickname. You can edit your own. Changing someone else's still requires permission to edit that account.
 
-**Users** has **Rewrite matching nicenames**. That button only counts. The next screen shows how many accounts still use the username as the nicename and how many already differ. **Update matching nicenames** asks you to confirm, then rewrites only the matches, using the same display-name or first-and-last rule. Usernames are not changed. You need to be allowed to edit users.
+**Users** has **Rewrite matching nicenames**. That button only counts. The next screen shows how many accounts still use the username as the nicename and how many already differ. **Update matching nicenames** asks you to confirm, then rewrites only the matches, using the same display-name or first-and-last rule. A username such as `a-addavies` whose nicename is still `a-addavies` is included. Usernames are not changed. You need to be allowed to edit users.
 
 ## Changelog
+
+### 1.12.1
+- Fixed Rewrite matching nicenames so accounts whose nicename is still the username are updated, including a username like a-addavies
+- The new nicename uses the display name, or first and last name, and is never left equal to the username
+- You can edit your own nicename under Nickname. Editing someone else's nicename still requires permission to edit that account
 
 ### 1.12.0
 - Added a private staff note on the user profile. Only people who can edit users can see or save it

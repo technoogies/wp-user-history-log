@@ -205,6 +205,37 @@ final class PluginSourceSecurityTest extends TestCase
             "/user_history_login_tracking_enabled',\s*'1'/",
             $settings
         );
+        $this->assertStringNotContainsString('user_history_disable_staff_gravatar', $settings);
+        $this->assertStringNotContainsString('Turn off Gravatar and profile photos for staff', $settings);
+    }
+
+    public function test_profile_photo_is_per_user_and_off_until_checked(): void
+    {
+        $photos = $this->profilePhotoSource();
+
+        $this->assertStringContainsString("if (!defined('ABSPATH'))", $photos);
+        $this->assertStringContainsString("META_KEY = 'user_history_disable_gravatar'", $photos);
+        $this->assertStringContainsString('get_user_meta($user_id, self::META_KEY, true)', $photos);
+        $this->assertStringContainsString("apply_filters('user_history_disable_gravatar'", $photos);
+        $this->assertStringContainsString("includes_url('images/blank.gif')", $photos);
+        $this->assertStringContainsString("add_action('show_user_profile'", $photos);
+        $this->assertStringContainsString("add_action('edit_user_profile'", $photos);
+        $this->assertStringContainsString("current_user_can('edit_user', \$user_id)", $photos);
+        $this->assertStringNotContainsString('CREATE TABLE', $photos);
+        $this->assertStringNotContainsString('TRUNCATE', $photos);
+        $this->assertStringNotContainsString('wp_ajax_nopriv_', $photos);
+        $this->assertStringNotContainsString('gravatar.com', $photos);
+        $this->assertStringNotContainsString('add_role', $photos);
+        $this->assertStringNotContainsString('is_staff', $photos);
+        $this->assertStringContainsString('boot_profile_photo', $this->source);
+        $this->assertStringContainsString('class-profile-photo.php', $this->source);
+        $this->assertStringNotContainsString('boot_staff_avatars', $this->source);
+        $this->assertStringNotContainsString('class-staff-avatars.php', $this->source);
+
+        $uninstall = file_get_contents(dirname(__DIR__, 2) . '/uninstall.php');
+        $this->assertNotFalse($uninstall);
+        $this->assertStringContainsString("delete_metadata('user', 0, 'user_history_disable_gravatar', '', true)", $uninstall);
+        $this->assertStringNotContainsString('user_history_disable_staff_gravatar', $uninstall);
     }
 
     public function test_uninstall_does_not_wipe_history_by_default(): void
@@ -350,6 +381,14 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertNotFalse($nicename);
 
         return $nicename;
+    }
+
+    private function profilePhotoSource(): string
+    {
+        $photos = file_get_contents(dirname(__DIR__, 2) . '/includes/class-profile-photo.php');
+        $this->assertNotFalse($photos);
+
+        return $photos;
     }
 
     private function updaterSource(): string

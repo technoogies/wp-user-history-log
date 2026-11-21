@@ -74,6 +74,7 @@ function user_history_uninstall_current_site() {
 
     if (function_exists('delete_metadata')) {
         delete_metadata('user', 0, 'user_history_locked', '', true);
+        delete_metadata('user', 0, 'user_history_disable_gravatar', '', true);
     }
 }
 

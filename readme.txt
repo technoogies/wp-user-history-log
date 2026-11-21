@@ -4,7 +4,7 @@ Tags: user history, user log, audit log, change username, user tracking
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.9.0
+Stable tag: 1.10.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -127,7 +127,7 @@ On activation or upgrade, users with baba_user_locked set to yes are copied to u
 
 = How do I record logins? =
 
-Turn on Record logins under User History → Settings. It stays off until you do. Failed logins are stored only for existing accounts. Passwords are never stored. Account History → Sessions is always available to people who can edit that user.
+Turn on Record logins under User History → Settings. It stays off until you do. Failed logins are stored only for existing accounts. Passwords are never stored. Account History → Sessions is always available to people who can edit that user. Sessions are listed newest first. The first view shows 25. Load Pages shows the older ones, 100 per page, underneath those 25. Session tokens are not deleted. New sessions store a public client IP from CF-Connecting-IP, X-Real-IP, or the client address in X-Forwarded-For when the server address is the proxy. Sessions already stored keep that older IP until they end. Record IP addresses still applies only to history and activity rows.
 
 = How do I restrict the dashboard? =
 
@@ -152,6 +152,12 @@ Open User History → Username Restrictions and turn the feature on. It stays of
 3. Search results showing users found by previous email/username
 
 == Changelog ==
+
+= 1.10.0 =
+* Sessions lists the newest login first and shows 25 sessions until Load Pages is clicked
+* Older sessions then load 100 per page, under those 25. Session tokens are not deleted
+* New sessions store a public client IP from CF-Connecting-IP, X-Real-IP, or X-Forwarded-For when the server address is the proxy
+* Existing session rows keep their stored IP until that session ends. History and activity IP collection is unchanged
 
 = 1.9.0 =
 * Show plugin updates in wp-admin from this repo's public GitHub Releases
@@ -257,6 +263,9 @@ Open User History → Username Restrictions and turn the feature on. It stays of
 * Account History display on user edit page
 
 == Upgrade Notice ==
+
+= 1.10.0 =
+The Sessions tab shows the 25 newest sessions first. Load Pages shows older sessions 100 at a time. Nothing is deleted. New sessions record a public client IP when the server address is the proxy. Existing session rows keep their old IP until they end.
 
 = 1.9.0 =
 Adds GitHub Release updates on the Plugins screen. After this version is published as a GitHub Release, newer Releases appear as normal WordPress plugin updates.

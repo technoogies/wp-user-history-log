@@ -42,6 +42,7 @@ The suite checks that:
 - Settings retention defaults to 0, IP collection honors the Settings option after the constant, and Clear All Logs requires manage_user_history and a real transaction;
 - account lock requires edit_users and edit_user, refuses self-lock and multisite super-admin lock, blocks login and application passwords, and migrates baba_user_locked once;
 - login recording stays off by default, logs only existing-account failures, never stores passwords, encrypts non-searchable user-agents, follows collect_ip, and Log Out Everywhere requires edit_users and edit_user;
+- new session tokens prefer a public client IP from CF-Connecting-IP, X-Real-IP, or the client address in X-Forwarded-For, and do not rewrite existing session rows; history and activity IPs stay on REMOTE_ADDR;
 - dashboard access stays off by default, does not auto-enable when Remove Dashboard Access is present, requires manage_user_history and manage_options to enable, keeps AJAX unlocked unless opted in, and matches allowlist wildcards without treating them as registered admin pages;
 - username restrictions stay off by default, do not auto-enable from Restrict Usernames, never rename existing accounts, apply to Change Username only when apply-to-admins is on, and expose user_history_validate_username;
 - activity log stays off by default, records only enabled event groups, reuses the daily prune hook for both tables, refuses TRUNCATE, and requires manage_user_history for the page and transactional Clear Activity Log;

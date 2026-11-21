@@ -4,7 +4,7 @@
  * Plugin Name: WP User History Log
  * Plugin URI: https://github.com/technoogies/wp-user-history-log
  * Description: Tracks changes made to user accounts (name, email, username, nicename, etc.) Adds NiceName edit field and displays a history log on the user edit page.
- * Version: 1.9.0
+ * Version: 1.10.0
  * Author: Technoogies / gpt 5.1 codex | from WPZOOM user-history
  * Author URI: https://technoogies.com
  * License: GPL v2 or later
@@ -926,6 +926,7 @@ class User_History {
             'clearActivityLogNonce' => wp_create_nonce('user_history_clear_activity_log'),
             'lockNonce' => wp_create_nonce('user_history_lock'),
             'destroySessionsNonce' => wp_create_nonce('user_history_destroy_sessions'),
+            'loadSessionPagesNonce' => wp_create_nonce('user_history_load_session_pages'),
             'userId'  => $user_id,
             'currentUserId' => get_current_user_id(),
             'i18n'    => [
@@ -949,6 +950,10 @@ class User_History {
                 'confirmDestroyOwnSessions' => __('This will sign you out of this site as well. Continue?', 'user-history'),
                 'destroyingSessions' => __('Working...', 'user-history'),
                 'logOutEverywhere' => __('Log Out Everywhere', 'user-history'),
+                'loadPages'     => __('Load Pages', 'user-history'),
+                'previous'      => __('Previous', 'user-history'),
+                'next'          => __('Next', 'user-history'),
+                'sessionsPage'  => __('Page %1$d of %2$d', 'user-history'),
                 'emptyLogins'   => __('No login events have been recorded yet.', 'user-history'),
                 'noSessions'    => __('No active sessions.', 'user-history'),
                 'loading'       => __('Loading...', 'user-history'),

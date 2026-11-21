@@ -43,7 +43,15 @@ final class PluginSourceSecurityTest extends TestCase
 
         $login = $this->loginSource();
         $this->assertStringContainsString("wp_ajax_' . self::DESTROY_ACTION", $login);
+        $this->assertStringContainsString("wp_ajax_' . self::LOAD_PAGES_ACTION", $login);
         $this->assertStringNotContainsString('wp_ajax_nopriv_', $login);
+        $this->assertStringContainsString('attach_session_information', $login);
+        $this->assertStringContainsString('set_logged_in_cookie', $login);
+        $this->assertStringContainsString('HTTP_CF_CONNECTING_IP', $login);
+        $this->assertStringContainsString('HTTP_X_REAL_IP', $login);
+        $this->assertStringContainsString('HTTP_X_FORWARDED_FOR', $login);
+        $this->assertStringContainsString('FILTER_FLAG_NO_PRIV_RANGE', $login);
+        $this->assertStringNotContainsString('user_history_collect_ip', $login);
         $this->assertStringNotContainsString('ipinfo.io', $login);
         $this->assertStringNotContainsString('TRUNCATE', $login);
         $this->assertStringContainsString("get_option(self::OPTION_KEY, '0')", $login);
@@ -99,6 +107,11 @@ final class PluginSourceSecurityTest extends TestCase
         $this->assertStringContainsString('user_history_username_changed', $activity);
         $this->assertStringContainsString('REMOTE_ADDR', $activity);
         $this->assertStringNotContainsString('HTTP_X_FORWARDED_FOR', $activity);
+        $this->assertStringNotContainsString('HTTP_CF_CONNECTING_IP', $activity);
+        $this->assertStringNotContainsString('HTTP_X_REAL_IP', $activity);
+        $this->assertStringNotContainsString('HTTP_X_FORWARDED_FOR', $this->source);
+        $this->assertStringNotContainsString('HTTP_CF_CONNECTING_IP', $this->source);
+        $this->assertStringNotContainsString('HTTP_X_REAL_IP', $this->source);
         $this->assertStringNotContainsString('innerHTML', $activity);
 
         $updater = $this->updaterSource();
